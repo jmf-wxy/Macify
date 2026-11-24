@@ -155,16 +155,52 @@ struct AppConfig {
     bool widgetClock24Hour = true;
     bool widgetClockShowSeconds = true;
     bool widgetClockShowDate = true;
-    float widgetClockX = 60.0f;
-    float widgetClockY = 60.0f;
+    float widgetClockX = 40.0f;
+    float widgetClockY = 40.0f;
+    float widgetClockW = 220.0f;
+    float widgetClockH = 90.0f;
 
     bool widgetDiskEnabled = true;
     int widgetDiskRefreshMin = 15; // 10 - 30 minutes
-    float widgetDiskX = 60.0f;
-    float widgetDiskY = 180.0f;
+    float widgetDiskX = 40.0f;
+    float widgetDiskY = 145.0f;
+    float widgetDiskW = 220.0f;
+    float widgetDiskH = 115.0f;
+
+    bool widgetSysMonEnabled = true;
+    float widgetSysMonX = 40.0f;
+    float widgetSysMonY = 275.0f;
+    float widgetSysMonW = 220.0f;
+    float widgetSysMonH = 115.0f;
+
+    bool widgetCalendarEnabled = true;
+    float widgetCalendarX = 40.0f;
+    float widgetCalendarY = 405.0f;
+    float widgetCalendarW = 220.0f;
+    float widgetCalendarH = 165.0f;
+
+    bool widgetMemoEnabled = false;
+    float widgetMemoX = 40.0f;
+    float widgetMemoY = 585.0f;
+    float widgetMemoW = 220.0f;
+    float widgetMemoH = 120.0f;
 
     bool widgetLockPosition = false;
     float widgetOpacity = 0.85f;
+
+    void UpdateWidgetBounds(const std::wstring& id, float x, float y, float w, float h) {
+        if (id == L"widget_clock") {
+            widgetClockX = x; widgetClockY = y; widgetClockW = w; widgetClockH = h;
+        } else if (id == L"widget_disk") {
+            widgetDiskX = x; widgetDiskY = y; widgetDiskW = w; widgetDiskH = h;
+        } else if (id == L"widget_sysmon") {
+            widgetSysMonX = x; widgetSysMonY = y; widgetSysMonW = w; widgetSysMonH = h;
+        } else if (id == L"widget_calendar") {
+            widgetCalendarX = x; widgetCalendarY = y; widgetCalendarW = w; widgetCalendarH = h;
+        } else if (id == L"widget_memo") {
+            widgetMemoX = x; widgetMemoY = y; widgetMemoW = w; widgetMemoH = h;
+        }
+    }
 
     // 5. 个性化主题与外观 (Themes & Appearance)
     int themePreset = 0; // 0: 深邃夜空黑, 1: 太空灰, 2: 纯净磨砂水晶, 3: 极光幻紫
@@ -249,13 +285,35 @@ struct AppConfig {
         widgetClock24Hour = true;
         widgetClockShowSeconds = true;
         widgetClockShowDate = true;
-        widgetClockX = 60.0f;
-        widgetClockY = 60.0f;
+        widgetClockX = 40.0f;
+        widgetClockY = 40.0f;
+        widgetClockW = 220.0f;
+        widgetClockH = 90.0f;
 
         widgetDiskEnabled = true;
         widgetDiskRefreshMin = 15;
-        widgetDiskX = 60.0f;
-        widgetDiskY = 180.0f;
+        widgetDiskX = 40.0f;
+        widgetDiskY = 145.0f;
+        widgetDiskW = 220.0f;
+        widgetDiskH = 115.0f;
+
+        widgetSysMonEnabled = true;
+        widgetSysMonX = 40.0f;
+        widgetSysMonY = 275.0f;
+        widgetSysMonW = 220.0f;
+        widgetSysMonH = 115.0f;
+
+        widgetCalendarEnabled = true;
+        widgetCalendarX = 40.0f;
+        widgetCalendarY = 405.0f;
+        widgetCalendarW = 220.0f;
+        widgetCalendarH = 165.0f;
+
+        widgetMemoEnabled = false;
+        widgetMemoX = 40.0f;
+        widgetMemoY = 585.0f;
+        widgetMemoW = 220.0f;
+        widgetMemoH = 120.0f;
 
         widgetLockPosition = false;
         widgetOpacity = 0.85f;
@@ -503,6 +561,8 @@ struct AppConfig {
         widgetClockShowDate = parseBool("clockShowDate", widgetClockShowDate);
         widgetClockX = parseFloat("clockX", widgetClockX);
         widgetClockY = parseFloat("clockY", widgetClockY);
+        widgetClockW = parseFloat("clockW", widgetClockW);
+        widgetClockH = parseFloat("clockH", widgetClockH);
 
         widgetDiskEnabled = parseBool("diskEnabled", widgetDiskEnabled);
         widgetDiskRefreshMin = parseInt("diskRefreshMin", widgetDiskRefreshMin);
@@ -513,6 +573,26 @@ struct AppConfig {
         }
         widgetDiskX = parseFloat("diskX", widgetDiskX);
         widgetDiskY = parseFloat("diskY", widgetDiskY);
+        widgetDiskW = parseFloat("diskW", widgetDiskW);
+        widgetDiskH = parseFloat("diskH", widgetDiskH);
+
+        widgetSysMonEnabled = parseBool("sysMonEnabled", widgetSysMonEnabled);
+        widgetSysMonX = parseFloat("sysMonX", widgetSysMonX);
+        widgetSysMonY = parseFloat("sysMonY", widgetSysMonY);
+        widgetSysMonW = parseFloat("sysMonW", widgetSysMonW);
+        widgetSysMonH = parseFloat("sysMonH", widgetSysMonH);
+
+        widgetCalendarEnabled = parseBool("calendarEnabled", widgetCalendarEnabled);
+        widgetCalendarX = parseFloat("calendarX", widgetCalendarX);
+        widgetCalendarY = parseFloat("calendarY", widgetCalendarY);
+        widgetCalendarW = parseFloat("calendarW", widgetCalendarW);
+        widgetCalendarH = parseFloat("calendarH", widgetCalendarH);
+
+        widgetMemoEnabled = parseBool("memoEnabled", widgetMemoEnabled);
+        widgetMemoX = parseFloat("memoX", widgetMemoX);
+        widgetMemoY = parseFloat("memoY", widgetMemoY);
+        widgetMemoW = parseFloat("memoW", widgetMemoW);
+        widgetMemoH = parseFloat("memoH", widgetMemoH);
 
         widgetLockPosition = parseBool("widgetLockPosition", widgetLockPosition);
         widgetOpacity = parseFloat("widgetOpacity", widgetOpacity);
@@ -655,10 +735,29 @@ struct AppConfig {
         ss << "    \"clockShowDate\": " << (widgetClockShowDate ? "true" : "false") << ",\n";
         ss << "    \"clockX\": " << widgetClockX << ",\n";
         ss << "    \"clockY\": " << widgetClockY << ",\n";
+        ss << "    \"clockW\": " << widgetClockW << ",\n";
+        ss << "    \"clockH\": " << widgetClockH << ",\n";
         ss << "    \"diskEnabled\": " << (widgetDiskEnabled ? "true" : "false") << ",\n";
         ss << "    \"diskRefreshMin\": " << widgetDiskRefreshMin << ",\n";
         ss << "    \"diskX\": " << widgetDiskX << ",\n";
         ss << "    \"diskY\": " << widgetDiskY << ",\n";
+        ss << "    \"diskW\": " << widgetDiskW << ",\n";
+        ss << "    \"diskH\": " << widgetDiskH << ",\n";
+        ss << "    \"sysMonEnabled\": " << (widgetSysMonEnabled ? "true" : "false") << ",\n";
+        ss << "    \"sysMonX\": " << widgetSysMonX << ",\n";
+        ss << "    \"sysMonY\": " << widgetSysMonY << ",\n";
+        ss << "    \"sysMonW\": " << widgetSysMonW << ",\n";
+        ss << "    \"sysMonH\": " << widgetSysMonH << ",\n";
+        ss << "    \"calendarEnabled\": " << (widgetCalendarEnabled ? "true" : "false") << ",\n";
+        ss << "    \"calendarX\": " << widgetCalendarX << ",\n";
+        ss << "    \"calendarY\": " << widgetCalendarY << ",\n";
+        ss << "    \"calendarW\": " << widgetCalendarW << ",\n";
+        ss << "    \"calendarH\": " << widgetCalendarH << ",\n";
+        ss << "    \"memoEnabled\": " << (widgetMemoEnabled ? "true" : "false") << ",\n";
+        ss << "    \"memoX\": " << widgetMemoX << ",\n";
+        ss << "    \"memoY\": " << widgetMemoY << ",\n";
+        ss << "    \"memoW\": " << widgetMemoW << ",\n";
+        ss << "    \"memoH\": " << widgetMemoH << ",\n";
         ss << "    \"lockPosition\": " << (widgetLockPosition ? "true" : "false") << ",\n";
         ss << "    \"opacity\": " << widgetOpacity << "\n";
         ss << "  },\n";

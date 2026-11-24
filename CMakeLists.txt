@@ -22,6 +22,9 @@ set(SOURCES
     src/drawer/DrawerWindow.cpp
     src/widgets/ClockWidget.cpp
     src/widgets/DiskWidget.cpp
+    src/widgets/SysMonitorWidget.cpp
+    src/widgets/CalendarWidget.cpp
+    src/widgets/MemoWidget.cpp
     src/widgets/WidgetHostWindow.cpp
     src/settings/SettingsWindow.cpp
 )
@@ -38,6 +41,9 @@ set(HEADERS
     src/widgets/IWidget.h
     src/widgets/ClockWidget.h
     src/widgets/DiskWidget.h
+    src/widgets/SysMonitorWidget.h
+    src/widgets/CalendarWidget.h
+    src/widgets/MemoWidget.h
     src/widgets/WidgetHostWindow.h
     src/settings/AppSettings.h
     src/settings/SettingsWindow.h

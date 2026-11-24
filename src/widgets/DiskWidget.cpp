@@ -3,11 +3,15 @@
 
 namespace Widgets {
 
-DiskWidget::DiskWidget(float x, float y)
+DiskWidget::DiskWidget(float x, float y, float width, float height)
     : m_x(x)
     , m_y(y)
-    , m_width(220.0f)
-    , m_height(100.0f)
+    , m_width(width)
+    , m_height(height)
+    , m_baseWidth(220.0f)
+    , m_baseHeight(115.0f)
+    , m_minWidth(140.0f)
+    , m_minHeight(75.0f)
     , m_enabled(true)
     , m_refreshInterval(900.0f)
     , m_timerAccumulator(900.0f)
@@ -19,6 +23,8 @@ DiskWidget::DiskWidget(float x, float y)
     , m_pBrushSubText(nullptr)
     , m_pTitleFormat(nullptr)
     , m_pSubFormat(nullptr) {
+    if (m_width <= 0) m_width = m_baseWidth;
+    if (m_height <= 0) m_height = m_baseHeight;
 }
 
 DiskWidget::~DiskWidget() {
@@ -111,7 +117,10 @@ void DiskWidget::RefreshDisks() {
         }
     }
 
-    m_height = 20.0f + m_disks.size() * 38.0f;
+    // Limit to at most first 2 or 3 primary drives to keep compact layout
+    if (m_disks.size() > 3) {
+        m_disks.resize(3);
+    }
 }
 
 void DiskWidget::OnUpdate(float deltaTime) {
@@ -126,19 +135,26 @@ void DiskWidget::OnUpdate(float deltaTime) {
 void DiskWidget::OnRender(ID2D1RenderTarget* pRT) {
     if (!m_enabled || !pRT) return;
 
+    D2D1_MATRIX_3X2_F oldTrans;
+    pRT->GetTransform(&oldTrans);
+
+    float scaleX = m_width / m_baseWidth;
+    float scaleY = m_height / m_baseHeight;
+    D2D1_MATRIX_3X2_F scaleTrans = D2D1::Matrix3x2F::Scale(scaleX, scaleY, D2D1::Point2F(m_x, m_y));
+    pRT->SetTransform(scaleTrans * oldTrans);
+
     // 1. Card backdrop
     D2D1_ROUNDED_RECT cardRect = D2D1::RoundedRect(
-        D2D1::RectF(m_x, m_y, m_x + m_width, m_y + m_height),
+        D2D1::RectF(m_x, m_y, m_x + m_baseWidth, m_y + m_baseHeight),
         16.0f,
         16.0f
     );
-    pRT->FillRoundedRectangle(cardRect, m_pBrushBg);
-    pRT->DrawRoundedRectangle(cardRect, m_pBrushBorder, 1.2f);
+    if (m_pBrushBg) pRT->FillRoundedRectangle(cardRect, m_pBrushBg);
+    if (m_pBrushBorder) pRT->DrawRoundedRectangle(cardRect, m_pBrushBorder, 1.2f);
 
     // 2. Render disks
     float curY = m_y + 12.0f;
     for (const auto& disk : m_disks) {
-        // Label: "C: 系统", "D: 软件", "E: 游戏", etc.
         wchar_t labelBuf[64];
         if (disk.letter == L"C:" || disk.label.find(L"Win") != std::wstring::npos) {
             swprintf_s(labelBuf, L"%s 系统", disk.letter.c_str());
@@ -166,14 +182,14 @@ void DiskWidget::OnRender(ID2D1RenderTarget* pRT) {
                 capBuf,
                 static_cast<UINT32>(wcslen(capBuf)),
                 m_pSubFormat,
-                D2D1::RectF(m_x + 95.0f, curY, m_x + m_width - 14.0f, curY + 16.0f),
+                D2D1::RectF(m_x + 95.0f, curY, m_x + m_baseWidth - 14.0f, curY + 16.0f),
                 m_pBrushSubText
             );
         }
 
         // Progress bar
         float barLeft = m_x + 14.0f;
-        float barRight = m_x + m_width - 14.0f;
+        float barRight = m_x + m_baseWidth - 14.0f;
         float barTop = curY + 18.0f;
         float barHeight = 6.0f;
 
@@ -183,11 +199,11 @@ void DiskWidget::OnRender(ID2D1RenderTarget* pRT) {
             3.0f,
             3.0f
         );
-        pRT->FillRoundedRectangle(trackRect, m_pBrushTrack);
+        if (m_pBrushTrack) pRT->FillRoundedRectangle(trackRect, m_pBrushTrack);
 
         // Active filled bar
         float activeWidth = (barRight - barLeft) * disk.usedRatio;
-        if (activeWidth > 2.0f) {
+        if (activeWidth > 2.0f && m_pBrushBar) {
             D2D1_ROUNDED_RECT activeRect = D2D1::RoundedRect(
                 D2D1::RectF(barLeft, barTop, barLeft + activeWidth, barTop + barHeight),
                 3.0f,
@@ -198,18 +214,12 @@ void DiskWidget::OnRender(ID2D1RenderTarget* pRT) {
 
         curY += 36.0f;
     }
+
+    pRT->SetTransform(oldTrans);
 }
 
 void DiskWidget::OnMouseEvent(const MouseEvent& evt) {
-}
-
-D2D1_RECT_F DiskWidget::GetBounds() const {
-    return D2D1::RectF(m_x, m_y, m_x + m_width, m_y + m_height);
-}
-
-void DiskWidget::SetPosition(float x, float y) {
-    m_x = x;
-    m_y = y;
+    (void)evt;
 }
 
 } // namespace Widgets

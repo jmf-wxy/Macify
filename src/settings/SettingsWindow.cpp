@@ -467,33 +467,44 @@ void SettingsWindow::DrawDrawerTab(ID2D1RenderTarget* rt, float contentX, float 
 
 void SettingsWindow::DrawWidgetsTab(ID2D1RenderTarget* rt, float contentX, float contentY) {
     rt->DrawTextW(L"桌面毛玻璃小组件", 8, m_pFormatTitle, D2D1::RectF(contentX, contentY, contentX + 400.0f, contentY + 30.0f), m_pBrushTextTitle);
-    rt->DrawTextW(L"数字时钟组件、磁盘监控仪表板与桌面微光卡片布局", 24, m_pFormatSubtitle, D2D1::RectF(contentX, contentY + 26.0f, contentX + 500.0f, contentY + 46.0f), m_pBrushTextDesc);
+    rt->DrawTextW(L"时钟、磁盘、性能监控、日历与便签挂件自由布局与拖拽缩放", 29, m_pFormatSubtitle, D2D1::RectF(contentX, contentY + 26.0f, contentX + 500.0f, contentY + 46.0f), m_pBrushTextDesc);
 
-    float cardY = contentY + 54.0f;
+    float cardY = contentY + 50.0f;
     float cardW = 574.0f;
-    float cardH = 48.0f;
+    float cardH = 44.0f;
+    float gap = 7.0f;
 
-    DrawToggleRow(rt, contentX, cardY, cardW, cardH, L"启用数字时钟挂件", L"在桌面右上角显示优雅时钟与公历日期", m_config.widgetClockEnabled, 11);
-    cardY += cardH + 8.0f;
+    // 1. Clock
+    DrawToggleRow(rt, contentX, cardY, cardW, cardH, L"启用数字时钟挂件", L"在桌面上显示优雅时钟与公历日期", m_config.widgetClockEnabled, 11);
+    cardY += cardH + gap;
 
     DrawToggleRow(rt, contentX, cardY, cardW, cardH, L"24 小时制时间制式", L"关闭则使用 12 小时制显示时间", m_config.widgetClock24Hour, 12);
-    cardY += cardH + 8.0f;
+    cardY += cardH + gap;
 
-    DrawToggleRow(rt, contentX, cardY, cardW, cardH, L"显示实时跳动秒数", L"以微弱光晕显示秒钟跳动", m_config.widgetClockShowSeconds, 13);
-    cardY += cardH + 8.0f;
+    // 2. Disk
+    DrawToggleRow(rt, contentX, cardY, cardW, cardH, L"启用磁盘容量监控组件", L"实时统计系统盘与各硬盘驱动器剩余容量", m_config.widgetDiskEnabled, 15);
+    cardY += cardH + gap;
 
-    DrawToggleRow(rt, contentX, cardY, cardW, cardH, L"显示日期与星期几", L"显示月份、日期与中文字符星期", m_config.widgetClockShowDate, 14);
-    cardY += cardH + 8.0f;
+    DrawSliderRow(rt, contentX, cardY, cardW, cardH, L"磁盘刷新轮询周期", L"读取硬盘驱动器剩余容量的时间间隔（极致节能）", static_cast<float>(m_config.widgetDiskRefreshMin), 10.0f, 30.0f, L"分钟", 7);
+    cardY += cardH + gap;
 
-    DrawToggleRow(rt, contentX, cardY, cardW, cardH, L"启用磁盘容量监控组件", L"实时统计 C 盘、D 盘使用量并绘制彩色圆角进度条", m_config.widgetDiskEnabled, 15);
-    cardY += cardH + 8.0f;
+    // 3. SysMon
+    DrawToggleRow(rt, contentX, cardY, cardW, cardH, L"启用系统性能监控组件", L"实时统计 CPU 负载与物理内存使用率 (双圆角量规)", m_config.widgetSysMonEnabled, 17);
+    cardY += cardH + gap;
 
-    DrawSliderRow(rt, contentX, cardY, cardW, cardH, L"磁盘刷新轮询周期", L"读取硬盘驱动器剩余容量的时间间隔（低频轮询极致省电节能）", static_cast<float>(m_config.widgetDiskRefreshMin), 10.0f, 30.0f, L"分钟", 7);
-    cardY += cardH + 8.0f;
+    // 4. Calendar
+    DrawToggleRow(rt, contentX, cardY, cardW, cardH, L"启用桌面迷你日历组件", L"桌面常驻当月公历网格并高亮今日焦点", m_config.widgetCalendarEnabled, 18);
+    cardY += cardH + gap;
 
-    DrawToggleRow(rt, contentX, cardY, cardW, cardH, L"锁定小组件位置", L"锁定挂件禁止鼠标误触拖动", m_config.widgetLockPosition, 16);
-    cardY += cardH + 8.0f;
+    // 5. Memo
+    DrawToggleRow(rt, contentX, cardY, cardW, cardH, L"启用桌面灵感便签组件", L"在桌面上记录待办备忘与灵感清单", m_config.widgetMemoEnabled, 19);
+    cardY += cardH + gap;
 
+    // 6. Lock
+    DrawToggleRow(rt, contentX, cardY, cardW, cardH, L"锁定小组件位置与大小", L"锁定后禁止鼠标随意拖动或缩放", m_config.widgetLockPosition, 16);
+    cardY += cardH + gap;
+
+    // 7. Opacity
     DrawSliderRow(rt, contentX, cardY, cardW, cardH, L"小组件半透明度", L"组件亚克力半透明磨砂卡片的透明强度", m_config.widgetOpacity * 100.0f, 30.0f, 100.0f, L"%", 8);
 }
 
@@ -810,19 +821,30 @@ void SettingsWindow::OnLButtonDown(int x, int y) {
             }
         }
     } else if (m_activeTab == 3) { // Widgets Tab
-        float cardY = 28.0f + 54.0f;
-        float cardH = 48.0f;
-        // Toggles 11, 12, 13, 14, 15
-        for (int tid = 11; tid <= 15; ++tid) {
-            float switchX = contentX + cardW - 46.0f - 16.0f;
+        float cardY = 28.0f + 50.0f;
+        float cardH = 44.0f;
+        float gap = 7.0f;
+        float switchX = contentX + cardW - 46.0f - 16.0f;
+        float trackX = contentX + cardW - 260.0f;
+
+        // Helper lambda to check toggle click
+        auto checkToggle = [&](int tid) -> bool {
             if (x >= switchX - 10 && x <= switchX + 56 && y >= cardY && y <= cardY + cardH) {
                 HandleToggleClick(tid);
-                return;
+                return true;
             }
-            cardY += cardH + 8.0f;
-        }
-        // Slider 7 (Refresh sec)
-        float trackX = contentX + cardW - 260.0f;
+            cardY += cardH + gap;
+            return false;
+        };
+
+        // Row 1: Clock
+        if (checkToggle(11)) return;
+        // Row 2: Clock 24H
+        if (checkToggle(12)) return;
+        // Row 3: Disk Enable
+        if (checkToggle(15)) return;
+
+        // Row 4: Disk Refresh Slider 7
         if (x >= trackX - 10 && x <= trackX + 185 && y >= cardY && y <= cardY + cardH) {
             m_activeSlider = 7;
             SetCapture(m_hwnd);
@@ -830,17 +852,18 @@ void SettingsWindow::OnLButtonDown(int x, int y) {
             HandleSliderDrag(7, ratio);
             return;
         }
-        cardY += cardH + 8.0f;
+        cardY += cardH + gap;
 
-        // Toggle 16 (Lock)
-        float switchX = contentX + cardW - 46.0f - 16.0f;
-        if (x >= switchX - 10 && x <= switchX + 56 && y >= cardY && y <= cardY + cardH) {
-            HandleToggleClick(16);
-            return;
-        }
-        cardY += cardH + 8.0f;
+        // Row 5: SysMon
+        if (checkToggle(17)) return;
+        // Row 6: Calendar
+        if (checkToggle(18)) return;
+        // Row 7: Memo
+        if (checkToggle(19)) return;
+        // Row 8: Lock
+        if (checkToggle(16)) return;
 
-        // Slider 8 (Opacity)
+        // Row 9: Opacity Slider 8
         if (x >= trackX - 10 && x <= trackX + 185 && y >= cardY && y <= cardY + cardH) {
             m_activeSlider = 8;
             SetCapture(m_hwnd);
@@ -997,6 +1020,15 @@ void SettingsWindow::HandleToggleClick(int toggleId) {
             break;
         case 16:
             m_config.widgetLockPosition = !m_config.widgetLockPosition;
+            break;
+        case 17:
+            m_config.widgetSysMonEnabled = !m_config.widgetSysMonEnabled;
+            break;
+        case 18:
+            m_config.widgetCalendarEnabled = !m_config.widgetCalendarEnabled;
+            break;
+        case 19:
+            m_config.widgetMemoEnabled = !m_config.widgetMemoEnabled;
             break;
     }
 

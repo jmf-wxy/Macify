@@ -8,6 +8,9 @@
 #include "widgets/WidgetHostWindow.h"
 #include "widgets/ClockWidget.h"
 #include "widgets/DiskWidget.h"
+#include "widgets/SysMonitorWidget.h"
+#include "widgets/CalendarWidget.h"
+#include "widgets/MemoWidget.h"
 #include "settings/AppSettings.h"
 #include "settings/SettingsWindow.h"
 
@@ -176,7 +179,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int) {
     g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     g_nid.uCallbackMessage = WM_TRAYICON;
     g_nid.hIcon = hAppIcon;
-    std::wstring tipText = L"Mac 桌面美化套件 v" + std::wstring(APP_VERSION_WSTRING) + L" (智能省电/游戏休眠)";
+    std::wstring tipText = L"Macify v" + std::wstring(APP_VERSION_WSTRING) + L" (智能省电/游戏休眠)";
     wcscpy_s(g_nid.szTip, tipText.c_str());
     Shell_NotifyIconW(NIM_ADD, &g_nid);
 
@@ -266,8 +269,17 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int) {
     // 8. Create and initialize Desktop Widgets Host
     Widgets::WidgetHostWindow widgetHost;
     if (widgetHost.Create()) {
-        widgetHost.AddWidget(std::make_unique<Widgets::ClockWidget>(10.0f, 10.0f));
-        widgetHost.AddWidget(std::make_unique<Widgets::DiskWidget>(10.0f, 115.0f));
+        widgetHost.AddWidget(std::make_unique<Widgets::ClockWidget>(cfg.widgetClockX, cfg.widgetClockY, cfg.widgetClockW, cfg.widgetClockH));
+        widgetHost.AddWidget(std::make_unique<Widgets::DiskWidget>(cfg.widgetDiskX, cfg.widgetDiskY, cfg.widgetDiskW, cfg.widgetDiskH));
+        widgetHost.AddWidget(std::make_unique<Widgets::SysMonitorWidget>(cfg.widgetSysMonX, cfg.widgetSysMonY, cfg.widgetSysMonW, cfg.widgetSysMonH));
+        widgetHost.AddWidget(std::make_unique<Widgets::CalendarWidget>(cfg.widgetCalendarX, cfg.widgetCalendarY, cfg.widgetCalendarW, cfg.widgetCalendarH));
+        widgetHost.AddWidget(std::make_unique<Widgets::MemoWidget>(cfg.widgetMemoX, cfg.widgetMemoY, cfg.widgetMemoW, cfg.widgetMemoH));
+
+        widgetHost.SetOnBoundsChanged([&cfg, configPath](const std::wstring& id, float x, float y, float w, float h) {
+            cfg.UpdateWidgetBounds(id, x, y, w, h);
+            cfg.SaveToFile(configPath);
+        });
+
         widgetHost.Show(true);
     }
 
@@ -283,7 +295,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int) {
     };
     scb.onWidgetsChanged = [&widgetHost](const Settings::AppConfig& c) {
         widgetHost.ApplySettings(c.widgetClockEnabled, c.widgetClock24Hour, c.widgetClockShowSeconds, c.widgetClockShowDate,
-                                 c.widgetDiskEnabled, static_cast<float>(c.widgetDiskRefreshMin * 60.0f));
+                                 c.widgetDiskEnabled, static_cast<float>(c.widgetDiskRefreshMin * 60.0f),
+                                 c.widgetSysMonEnabled, c.widgetCalendarEnabled, c.widgetMemoEnabled,
+                                 c.widgetLockPosition);
     };
     scb.onAppearanceChanged = [&dock, &drawer, &widgetHost](const Settings::AppConfig& c) {
         auto p = Settings::GetThemePalette(c.themePreset, c.accentColor, c.dockBgOpacity, c.widgetOpacity);
@@ -315,7 +329,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int) {
                        cfg.dockShowTooltip, cfg.dockAutoHide);
     drawer.ApplySettings(cfg.drawerColumns, cfg.drawerIconSize, cfg.drawerAutoCloseOnBlur, cfg.drawerSearchAutoFocus);
     widgetHost.ApplySettings(cfg.widgetClockEnabled, cfg.widgetClock24Hour, cfg.widgetClockShowSeconds, cfg.widgetClockShowDate,
-                             cfg.widgetDiskEnabled, static_cast<float>(cfg.widgetDiskRefreshMin * 60.0f));
+                             cfg.widgetDiskEnabled, static_cast<float>(cfg.widgetDiskRefreshMin * 60.0f),
+                             cfg.widgetSysMonEnabled, cfg.widgetCalendarEnabled, cfg.widgetMemoEnabled,
+                             cfg.widgetLockPosition);
     
     // Apply initial theme and appearance across all modules
     auto p = Settings::GetThemePalette(cfg.themePreset, cfg.accentColor, cfg.dockBgOpacity, cfg.widgetOpacity);

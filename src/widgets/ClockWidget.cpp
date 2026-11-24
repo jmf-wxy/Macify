@@ -4,11 +4,15 @@
 
 namespace Widgets {
 
-ClockWidget::ClockWidget(float x, float y)
+ClockWidget::ClockWidget(float x, float y, float width, float height)
     : m_x(x)
     , m_y(y)
-    , m_width(220.0f)
-    , m_height(90.0f)
+    , m_width(width)
+    , m_height(height)
+    , m_baseWidth(220.0f)
+    , m_baseHeight(90.0f)
+    , m_minWidth(140.0f)
+    , m_minHeight(58.0f)
     , m_enabled(true)
     , m_is24Hour(true)
     , m_showSeconds(true)
@@ -20,6 +24,8 @@ ClockWidget::ClockWidget(float x, float y)
     , m_pBrushDateText(nullptr)
     , m_pTimeFormat(nullptr)
     , m_pDateFormat(nullptr) {
+    if (m_width <= 0) m_width = m_baseWidth;
+    if (m_height <= 0) m_height = m_baseHeight;
 }
 
 ClockWidget::~ClockWidget() {
@@ -31,14 +37,14 @@ ClockWidget::~ClockWidget() {
     if (m_pBrushBg) m_pBrushBg->Release();
 }
 
-void ClockWidget::ApplyTheme(D2D1_COLOR_F bg, D2D1_COLOR_F border) {
+void ClockWidget::ApplyTheme(D2D1_COLOR_F bg, D2D1_COLOR_F border, D2D1_COLOR_F accent) {
+    (void)accent;
     if (m_pBrushBg) m_pBrushBg->SetColor(bg);
     if (m_pBrushBorder) m_pBrushBorder->SetColor(border);
 }
 
 void ClockWidget::OnInit(ID2D1RenderTarget* pRT, IDWriteFactory* pDWrite) {
     if (pRT) {
-        // Frosted glass card backdrop: semi-transparent with soft white border
         pRT->CreateSolidColorBrush(D2D1::ColorF(0.08f, 0.09f, 0.12f, 0.72f), &m_pBrushBg);
         pRT->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.18f), &m_pBrushBorder);
         pRT->CreateSolidColorBrush(D2D1::ColorF(0.98f, 0.98f, 1.0f, 0.95f), &m_pBrushTimeText);
@@ -46,7 +52,7 @@ void ClockWidget::OnInit(ID2D1RenderTarget* pRT, IDWriteFactory* pDWrite) {
     }
 
     if (pDWrite) {
-        // Large digital clock font
+        // Digital clock font
         pDWrite->CreateTextFormat(
             L"Segoe UI",
             nullptr,
@@ -118,18 +124,26 @@ void ClockWidget::OnUpdate(float deltaTime) {
 void ClockWidget::OnRender(ID2D1RenderTarget* pRT) {
     if (!m_enabled || !pRT) return;
 
+    D2D1_MATRIX_3X2_F oldTrans;
+    pRT->GetTransform(&oldTrans);
+
+    float scaleX = m_width / m_baseWidth;
+    float scaleY = m_height / m_baseHeight;
+    D2D1_MATRIX_3X2_F scaleTrans = D2D1::Matrix3x2F::Scale(scaleX, scaleY, D2D1::Point2F(m_x, m_y));
+    pRT->SetTransform(scaleTrans * oldTrans);
+
     // 1. Draw rounded card
     D2D1_ROUNDED_RECT cardRect = D2D1::RoundedRect(
-        D2D1::RectF(m_x, m_y, m_x + m_width, m_y + m_height),
+        D2D1::RectF(m_x, m_y, m_x + m_baseWidth, m_y + m_baseHeight),
         16.0f,
         16.0f
     );
-    pRT->FillRoundedRectangle(cardRect, m_pBrushBg);
-    pRT->DrawRoundedRectangle(cardRect, m_pBrushBorder, 1.2f);
+    if (m_pBrushBg) pRT->FillRoundedRectangle(cardRect, m_pBrushBg);
+    if (m_pBrushBorder) pRT->DrawRoundedRectangle(cardRect, m_pBrushBorder, 1.2f);
 
     // 2. Draw Time
     if (m_pTimeFormat && m_pBrushTimeText) {
-        D2D1_RECT_F timeRect = D2D1::RectF(m_x, m_y + 8.0f, m_x + m_width, m_y + 54.0f);
+        D2D1_RECT_F timeRect = D2D1::RectF(m_x, m_y + 8.0f, m_x + m_baseWidth, m_y + 54.0f);
         pRT->DrawTextW(
             m_timeString.c_str(),
             static_cast<UINT32>(m_timeString.length()),
@@ -141,7 +155,7 @@ void ClockWidget::OnRender(ID2D1RenderTarget* pRT) {
 
     // 3. Draw Date
     if (m_pDateFormat && m_pBrushDateText) {
-        D2D1_RECT_F dateRect = D2D1::RectF(m_x, m_y + 54.0f, m_x + m_width, m_y + 82.0f);
+        D2D1_RECT_F dateRect = D2D1::RectF(m_x, m_y + 54.0f, m_x + m_baseWidth, m_y + 82.0f);
         pRT->DrawTextW(
             m_dateString.c_str(),
             static_cast<UINT32>(m_dateString.length()),
@@ -150,19 +164,12 @@ void ClockWidget::OnRender(ID2D1RenderTarget* pRT) {
             m_pBrushDateText
         );
     }
+
+    pRT->SetTransform(oldTrans);
 }
 
 void ClockWidget::OnMouseEvent(const MouseEvent& evt) {
-    // Interactive drag or hover can be handled here
-}
-
-D2D1_RECT_F ClockWidget::GetBounds() const {
-    return D2D1::RectF(m_x, m_y, m_x + m_width, m_y + m_height);
-}
-
-void ClockWidget::SetPosition(float x, float y) {
-    m_x = x;
-    m_y = y;
+    (void)evt;
 }
 
 } // namespace Widgets

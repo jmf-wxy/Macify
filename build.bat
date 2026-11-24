@@ -40,6 +40,9 @@ if %errorlevel% equ 0 (
         src/drawer/DrawerWindow.cpp ^
         src/widgets/ClockWidget.cpp ^
         src/widgets/DiskWidget.cpp ^
+        src/widgets/SysMonitorWidget.cpp ^
+        src/widgets/CalendarWidget.cpp ^
+        src/widgets/MemoWidget.cpp ^
         src/widgets/WidgetHostWindow.cpp ^
         src/settings/SettingsWindow.cpp ^
         !RES_OBJ! ^

@@ -648,7 +648,7 @@ void DockWindow::OnRButtonUp(int x, int y) {
     } else {
         // Right clicked blank area of the dock bar
         HMENU hMenu = CreatePopupMenu();
-        AppendMenuW(hMenu, MF_STRING | MF_DISABLED, 0, L"Mac 桌面美化");
+        AppendMenuW(hMenu, MF_STRING | MF_DISABLED, 0, L"Macify");
         AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
         AppendMenuW(hMenu, MF_STRING, 2001, L"打开启动台");
         AppendMenuW(hMenu, MF_STRING, 2002, L"设置");

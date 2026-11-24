@@ -27,8 +27,14 @@ public:
 
     virtual D2D1_RECT_F GetBounds() const = 0;
     virtual void SetPosition(float x, float y) = 0;
+    virtual void SetSize(float width, float height) = 0;
+    virtual D2D1_SIZE_F GetSize() const = 0;
+    virtual D2D1_SIZE_F GetBaseSize() const = 0;
+    virtual D2D1_SIZE_F GetMinSize() const = 0;
+
     virtual bool IsEnabled() const = 0;
     virtual void SetEnabled(bool enable) = 0;
+    virtual void ApplyTheme(D2D1_COLOR_F bg, D2D1_COLOR_F border, D2D1_COLOR_F accent) = 0;
 };
 
 } // namespace Widgets

@@ -1,19 +1,36 @@
 #include "WidgetHostWindow.h"
 #include "ClockWidget.h"
 #include "DiskWidget.h"
+#include "SysMonitorWidget.h"
+#include "CalendarWidget.h"
+#include "MemoWidget.h"
 #include "../core/Backdrop.h"
+#include <algorithm>
 
 namespace Widgets {
 
 constexpr UINT_PTR TIMER_UPDATE_ID = 2001;
+constexpr float RESIZE_GRIP_SIZE = 18.0f;
 
 WidgetHostWindow::WidgetHostWindow()
-    : m_hwnd(nullptr) {
+    : m_hwnd(nullptr)
+    , m_lockPosition(false)
+    , m_dragMode(DragMode::None)
+    , m_activeWidget(nullptr)
+    , m_dragStartMouse({})
+    , m_dragStartWidgetX(0.0f)
+    , m_dragStartWidgetY(0.0f)
+    , m_dragStartWidgetW(0.0f)
+    , m_dragStartWidgetH(0.0f)
+    , m_pBrushGrip(nullptr) {
 }
 
 WidgetHostWindow::~WidgetHostWindow() {
     if (m_hwnd) {
         KillTimer(m_hwnd, TIMER_UPDATE_ID);
+    }
+    if (m_pBrushGrip) {
+        m_pBrushGrip->Release();
     }
 }
 
@@ -28,22 +45,19 @@ bool WidgetHostWindow::Create() {
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
     RegisterClassExW(&wc);
 
-    // Place on desktop top-right or top-left area
+    // Cover the full desktop area so widgets can be freely moved and resized anywhere on screen
     int screenWidth = GetSystemMetrics(SM_CXSCREEN);
-    int winW = 240;
-    int winH = 460;
-    int winX = screenWidth - winW - 30; // top right
-    int winY = 40;
+    int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
     m_hwnd = CreateWindowExW(
         WS_EX_TOOLWINDOW,
         CLASS_NAME,
-        L"DesktopWidgets",
+        L"DesktopWidgetsHost",
         WS_POPUP,
-        winX,
-        winY,
-        winW,
-        winH,
+        0,
+        0,
+        screenWidth,
+        screenHeight,
         nullptr,
         nullptr,
         GetModuleHandle(nullptr),
@@ -52,14 +66,19 @@ bool WidgetHostWindow::Create() {
 
     if (!m_hwnd) return false;
 
-    // Remove window border and enable full transparency
+    // Enable complete transparency and remove any borders
     Core::RemoveWindowBorder(m_hwnd);
 
-    // Send to bottom (desktop level, below normal windows)
+    // Place at bottom of Z-order (desktop level, below normal active windows)
     SetWindowPos(m_hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 
     // Initialize Direct2D
     if (!m_d2d.Initialize(m_hwnd)) return false;
+
+    auto rt = m_d2d.GetRenderTarget();
+    if (rt) {
+        rt->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.40f), &m_pBrushGrip);
+    }
 
     // 1-second update timer for clock & widgets
     SetTimer(m_hwnd, TIMER_UPDATE_ID, 1000, nullptr);
@@ -70,6 +89,7 @@ bool WidgetHostWindow::Create() {
 void WidgetHostWindow::Show(bool show) {
     if (m_hwnd) {
         ShowWindow(m_hwnd, show ? SW_SHOWNOACTIVATE : SW_HIDE);
+        SetWindowPos(m_hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         UpdateWindow(m_hwnd);
     }
 }
@@ -95,25 +115,43 @@ void WidgetHostWindow::AddWidget(std::unique_ptr<IWidget> widget) {
     }
 }
 
-void WidgetHostWindow::ApplySettings(bool clockEnabled, bool is24Hour, bool showSeconds, bool showDate, bool diskEnabled, float diskInterval) {
+IWidget* WidgetHostWindow::FindWidget(const std::wstring& id) {
     for (auto& w : m_widgets) {
-        if (w->GetId() == L"widget_clock") {
+        if (w->GetId() == id) return w.get();
+    }
+    return nullptr;
+}
+
+void WidgetHostWindow::ApplySettings(bool clockEnabled, bool is24Hour, bool showSeconds, bool showDate,
+                                    bool diskEnabled, float diskInterval,
+                                    bool sysMonEnabled, bool calendarEnabled, bool memoEnabled,
+                                    bool lockPosition) {
+    m_lockPosition = lockPosition;
+
+    for (auto& w : m_widgets) {
+        std::wstring id = w->GetId();
+        if (id == L"widget_clock") {
             w->SetEnabled(clockEnabled);
-            auto clock = dynamic_cast<ClockWidget*>(w.get());
-            if (clock) {
+            if (auto clock = dynamic_cast<ClockWidget*>(w.get())) {
                 clock->Set24Hour(is24Hour);
                 clock->SetShowSeconds(showSeconds);
                 clock->SetShowDate(showDate);
                 clock->OnUpdate(1.0f);
             }
-        } else if (w->GetId() == L"widget_disk") {
+        } else if (id == L"widget_disk") {
             w->SetEnabled(diskEnabled);
-            auto disk = dynamic_cast<DiskWidget*>(w.get());
-            if (disk) {
+            if (auto disk = dynamic_cast<DiskWidget*>(w.get())) {
                 disk->SetRefreshInterval(diskInterval);
             }
+        } else if (id == L"widget_sysmon") {
+            w->SetEnabled(sysMonEnabled);
+        } else if (id == L"widget_calendar") {
+            w->SetEnabled(calendarEnabled);
+        } else if (id == L"widget_memo") {
+            w->SetEnabled(memoEnabled);
         }
     }
+
     if (m_hwnd) {
         InvalidateRect(m_hwnd, nullptr, FALSE);
     }
@@ -121,11 +159,7 @@ void WidgetHostWindow::ApplySettings(bool clockEnabled, bool is24Hour, bool show
 
 void WidgetHostWindow::ApplyTheme(D2D1_COLOR_F bg, D2D1_COLOR_F border, D2D1_COLOR_F accent) {
     for (auto& w : m_widgets) {
-        if (auto clock = dynamic_cast<ClockWidget*>(w.get())) {
-            clock->ApplyTheme(bg, border);
-        } else if (auto disk = dynamic_cast<DiskWidget*>(w.get())) {
-            disk->ApplyTheme(bg, border, accent);
-        }
+        w->ApplyTheme(bg, border, accent);
     }
     if (m_hwnd) {
         InvalidateRect(m_hwnd, nullptr, FALSE);
@@ -134,7 +168,9 @@ void WidgetHostWindow::ApplyTheme(D2D1_COLOR_F bg, D2D1_COLOR_F border, D2D1_COL
 
 void WidgetHostWindow::OnTimer() {
     for (auto& w : m_widgets) {
-        w->OnUpdate(1.0f);
+        if (w->IsEnabled()) {
+            w->OnUpdate(1.0f);
+        }
     }
     Render();
 }
@@ -147,7 +183,21 @@ void WidgetHostWindow::Render() {
     rt->Clear(D2D1::ColorF(0, 0, 0, 0.0f));
 
     for (const auto& w : m_widgets) {
+        if (!w->IsEnabled()) continue;
+
         w->OnRender(rt);
+
+        // If widgets are not locked, draw subtle diagonal resize grip dots at the bottom-right corner
+        if (!m_lockPosition && m_pBrushGrip) {
+            D2D1_RECT_F b = w->GetBounds();
+            float rx = b.right - 8.0f;
+            float ry = b.bottom - 8.0f;
+
+            // 3 subtle grip dots
+            rt->FillEllipse(D2D1::Ellipse(D2D1::Point2F(rx, ry), 1.5f, 1.5f), m_pBrushGrip);
+            rt->FillEllipse(D2D1::Ellipse(D2D1::Point2F(rx - 5.0f, ry), 1.5f, 1.5f), m_pBrushGrip);
+            rt->FillEllipse(D2D1::Ellipse(D2D1::Point2F(rx, ry - 5.0f), 1.5f, 1.5f), m_pBrushGrip);
+        }
     }
 
     m_d2d.EndDraw();
@@ -187,17 +237,124 @@ LRESULT WidgetHostWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) 
     }
 
     case WM_NCHITTEST: {
+        if (m_dragMode != DragMode::None) {
+            return HTCLIENT;
+        }
+
         short screenX = static_cast<short>(LOWORD(lParam));
         short screenY = static_cast<short>(HIWORD(lParam));
         POINT pt = { screenX, screenY };
         ScreenToClient(m_hwnd, &pt);
+
         for (const auto& w : m_widgets) {
+            if (!w->IsEnabled()) continue;
             D2D1_RECT_F b = w->GetBounds();
             if (pt.x >= b.left && pt.x <= b.right && pt.y >= b.top && pt.y <= b.bottom) {
                 return HTCLIENT;
             }
         }
+        // Transparent outside all widgets: clicks pass straight through to desktop icons/wallpaper!
         return HTTRANSPARENT;
+    }
+
+    case WM_SETCURSOR: {
+        if (LOWORD(lParam) == HTCLIENT) {
+            POINT pt;
+            GetCursorPos(&pt);
+            ScreenToClient(m_hwnd, &pt);
+
+            if (m_dragMode == DragMode::Resize) {
+                SetCursor(LoadCursor(nullptr, IDC_SIZENWSE));
+                return TRUE;
+            } else if (m_dragMode == DragMode::Move) {
+                SetCursor(LoadCursor(nullptr, IDC_SIZEALL));
+                return TRUE;
+            }
+
+            for (const auto& w : m_widgets) {
+                if (!w->IsEnabled()) continue;
+                D2D1_RECT_F b = w->GetBounds();
+                if (pt.x >= b.left && pt.x <= b.right && pt.y >= b.top && pt.y <= b.bottom) {
+                    bool inGrip = (pt.x >= b.right - RESIZE_GRIP_SIZE && pt.y >= b.bottom - RESIZE_GRIP_SIZE);
+                    if (inGrip && !m_lockPosition) {
+                        SetCursor(LoadCursor(nullptr, IDC_SIZENWSE));
+                        return TRUE;
+                    } else if (!m_lockPosition) {
+                        SetCursor(LoadCursor(nullptr, IDC_SIZEALL));
+                        return TRUE;
+                    } else {
+                        SetCursor(LoadCursor(nullptr, IDC_ARROW));
+                        return TRUE;
+                    }
+                }
+            }
+        }
+        break;
+    }
+
+    case WM_LBUTTONDOWN: {
+        POINT pt = { static_cast<short>(LOWORD(lParam)), static_cast<short>(HIWORD(lParam)) };
+        // Check topmost matching widget
+        for (auto it = m_widgets.rbegin(); it != m_widgets.rend(); ++it) {
+            auto& w = *it;
+            if (!w->IsEnabled()) continue;
+            D2D1_RECT_F b = w->GetBounds();
+            if (pt.x >= b.left && pt.x <= b.right && pt.y >= b.top && pt.y <= b.bottom) {
+                m_activeWidget = w.get();
+                m_dragStartMouse = pt;
+                m_dragStartWidgetX = b.left;
+                m_dragStartWidgetY = b.top;
+                m_dragStartWidgetW = b.right - b.left;
+                m_dragStartWidgetH = b.bottom - b.top;
+
+                bool inGrip = (pt.x >= b.right - RESIZE_GRIP_SIZE && pt.y >= b.bottom - RESIZE_GRIP_SIZE);
+                if (inGrip && !m_lockPosition) {
+                    m_dragMode = DragMode::Resize;
+                    SetCapture(m_hwnd);
+                } else if (!m_lockPosition) {
+                    m_dragMode = DragMode::Move;
+                    SetCapture(m_hwnd);
+                } else {
+                    m_dragMode = DragMode::None;
+                }
+                return 0;
+            }
+        }
+        return 0;
+    }
+
+    case WM_MOUSEMOVE: {
+        POINT pt = { static_cast<short>(LOWORD(lParam)), static_cast<short>(HIWORD(lParam)) };
+        if (m_dragMode == DragMode::Move && m_activeWidget) {
+            float dx = static_cast<float>(pt.x - m_dragStartMouse.x);
+            float dy = static_cast<float>(pt.y - m_dragStartMouse.y);
+            m_activeWidget->SetPosition(m_dragStartWidgetX + dx, m_dragStartWidgetY + dy);
+            InvalidateRect(m_hwnd, nullptr, FALSE);
+            return 0;
+        } else if (m_dragMode == DragMode::Resize && m_activeWidget) {
+            float dx = static_cast<float>(pt.x - m_dragStartMouse.x);
+            float dy = static_cast<float>(pt.y - m_dragStartMouse.y);
+            float newW = (std::max)(m_activeWidget->GetMinSize().width, m_dragStartWidgetW + dx);
+            float newH = (std::max)(m_activeWidget->GetMinSize().height, m_dragStartWidgetH + dy);
+            m_activeWidget->SetSize(newW, newH);
+            InvalidateRect(m_hwnd, nullptr, FALSE);
+            return 0;
+        }
+        break;
+    }
+
+    case WM_LBUTTONUP: {
+        if (m_dragMode != DragMode::None) {
+            ReleaseCapture();
+            if (m_onBoundsChanged && m_activeWidget) {
+                D2D1_RECT_F b = m_activeWidget->GetBounds();
+                m_onBoundsChanged(m_activeWidget->GetId(), b.left, b.top, b.right - b.left, b.bottom - b.top);
+            }
+            m_dragMode = DragMode::None;
+            m_activeWidget = nullptr;
+            return 0;
+        }
+        break;
     }
 
     case WM_ERASEBKGND:
