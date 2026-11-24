@@ -76,6 +76,8 @@ private:
     float m_barHeight;
     float m_barWidth;
     float m_bgOpacity;
+    int m_lastD2DWidth;
+    int m_lastD2DHeight;
     bool m_showDot;
     bool m_showTooltip;
     bool m_autoHideEnabled;

@@ -37,6 +37,8 @@ DockWindow::DockWindow()
     , m_barHeight(150.0f)
     , m_barWidth(450.0f)
     , m_bgOpacity(0.80f)
+    , m_lastD2DWidth(0)
+    , m_lastD2DHeight(0)
     , m_showDot(true)
     , m_showTooltip(true)
     , m_autoHideEnabled(false)
@@ -712,12 +714,15 @@ void DockWindow::UpdateLayout() {
 void DockWindow::UpdateLayoutPosition() {
     int screenWidth = GetSystemMetrics(SM_CXSCREEN);
     int screenHeight = GetSystemMetrics(SM_CYSCREEN);
-    RECT workArea;
+    RECT workArea = {};
     SystemParametersInfoW(SPI_GETWORKAREA, 0, &workArea, 0);
 
-    int restingY = static_cast<int>(workArea.bottom - m_barHeight - m_bottomMargin);
-    // When hidden, dock slides below bottom of screen, leaving top 2px as touch trigger
-    int hiddenY = screenHeight - 2;
+    bool isTaskbarAtBottom = (workArea.bottom < screenHeight - 10);
+    int baselineY = workArea.bottom;
+
+    int restingY = static_cast<int>(baselineY - m_barHeight - m_bottomMargin);
+    // When hidden, dock slides neatly below work area boundary
+    int hiddenY = isTaskbarAtBottom ? (baselineY - 4) : (screenHeight - 4);
 
     int currentY = static_cast<int>(restingY + (hiddenY - restingY) * m_hideProgress);
     int winX = static_cast<int>((screenWidth - m_barWidth) / 2);
@@ -725,7 +730,11 @@ void DockWindow::UpdateLayoutPosition() {
     int winH = static_cast<int>(m_barHeight);
 
     SetWindowPos(m_hwnd, nullptr, winX, currentY, winW, winH, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW);
-    m_d2d.Resize(winW, winH);
+    if (winW != m_lastD2DWidth || winH != m_lastD2DHeight) {
+        m_d2d.Resize(winW, winH);
+        m_lastD2DWidth = winW;
+        m_lastD2DHeight = winH;
+    }
 
     // Compute center X of each icon (leaving insertion gap if dragging over dock)
     float currentX = m_endPadding;
@@ -816,9 +825,11 @@ bool DockWindow::CheckOverlap() {
         return false;
     }
 
-    int screenWidth = GetSystemMetrics(SM_CXSCREEN);
     int screenHeight = GetSystemMetrics(SM_CYSCREEN);
-    int dockTop = screenHeight - static_cast<int>(m_barVisualHeight + m_bottomMargin + 25.0f);
+    RECT workArea = {};
+    SystemParametersInfoW(SPI_GETWORKAREA, 0, &workArea, 0);
+    int baselineY = workArea.bottom;
+    int dockTop = baselineY - static_cast<int>(m_barVisualHeight + m_bottomMargin + 25.0f);
 
     RECT dockRect;
     GetWindowRect(m_hwnd, &dockRect);
@@ -885,8 +896,10 @@ void DockWindow::UpdateAutoHide() {
     if (!m_autoHideEnabled) {
         if (m_hideProgress > 0.0f) {
             m_targetHideProgress = 0.0f;
-            SetTimer(m_hwnd, TIMER_SLIDE_ID, 16, nullptr);
-            m_isSlideAnimating = true;
+            if (!m_isSlideAnimating) {
+                SetTimer(m_hwnd, TIMER_SLIDE_ID, 16, nullptr);
+                m_isSlideAnimating = true;
+            }
         }
         return;
     }
@@ -899,13 +912,42 @@ void DockWindow::UpdateAutoHide() {
 
     POINT pt;
     GetCursorPos(&pt);
-    int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
-    RECT winRect;
-    GetWindowRect(m_hwnd, &winRect);
-    bool isMouseOverDock = PtInRect(&winRect, pt);
-    // Mouse within bottom 8px of screen triggers reveal
-    bool isMouseAtBottom = (pt.y >= screenHeight - 8);
+    RECT workArea = {};
+    SystemParametersInfoW(SPI_GETWORKAREA, 0, &workArea, 0);
+    int screenWidth = GetSystemMetrics(SM_CXSCREEN);
+    int screenHeight = GetSystemMetrics(SM_CYSCREEN);
+    bool isTaskbarAtBottom = (workArea.bottom < screenHeight - 10);
+    int baselineY = workArea.bottom;
+
+    int winW = static_cast<int>(m_barWidth);
+    int winH = static_cast<int>(m_barHeight);
+    int winX = static_cast<int>((screenWidth - m_barWidth) / 2);
+    int restingY = static_cast<int>(baselineY - m_barHeight - m_bottomMargin);
+
+    RECT restingRect = { winX, restingY, winX + winW, restingY + winH };
+    bool isHorizontallyOverDock = (pt.x >= winX - 30 && pt.x <= winX + winW + 30);
+    bool isMouseInRestingDock = PtInRect(&restingRect, pt);
+
+    RECT currentWinRect = {};
+    GetWindowRect(m_hwnd, &currentWinRect);
+    bool isMouseInCurrentWindow = PtInRect(&currentWinRect, pt);
+
+    // Trigger zone detection:
+    // When dock is hidden or retreating, user triggers reveal by moving mouse to the bottom boundary of the desktop/work area
+    // within the dock's horizontal span.
+    // If the Windows taskbar is visible at the bottom (pt.y >= baselineY), the user is interacting with the Windows taskbar!
+    // Never trigger Dock reveal from inside the Windows taskbar.
+    bool isTriggerActive = false;
+    if (isHorizontallyOverDock) {
+        if (isTaskbarAtBottom) {
+            // Taskbar is at bottom: trigger is right at the junction above taskbar (baselineY - 6 to baselineY)
+            isTriggerActive = (pt.y >= baselineY - 6 && pt.y < baselineY);
+        } else {
+            // Taskbar is hidden: trigger is bottom edge of screen
+            isTriggerActive = (pt.y >= screenHeight - 6);
+        }
+    }
 
     if (!m_isOverlapped) {
         // On desktop: dock always stays fully visible
@@ -913,14 +955,36 @@ void DockWindow::UpdateAutoHide() {
         m_hideGraceFrames = 0;
     } else {
         // When overlapping window exists
-        if (isMouseOverDock || isMouseAtBottom || m_isMouseInside) {
-            m_targetHideProgress = 0.0f;
-            m_hideGraceFrames = 10; // ~500ms grace period after mouse leaves
-        } else {
-            if (m_hideGraceFrames > 0) {
-                m_hideGraceFrames--;
+        if (m_targetHideProgress == 0.0f) {
+            // Dock is currently visible or staying visible:
+            // It stays shown if mouse is in the dock window, or inside the resting dock rect,
+            // or in the margin between dock and baselineY (still interacting with dock area).
+            bool isMouseInDockArea = (isMouseInCurrentWindow || isMouseInRestingDock || m_isMouseInside);
+            if (isHorizontallyOverDock && pt.y >= restingRect.top && pt.y < baselineY) {
+                isMouseInDockArea = true;
+            }
+
+            // If mouse moved onto the Windows taskbar (pt.y >= baselineY), it has explicitly left the dock!
+            if (isTaskbarAtBottom && pt.y >= baselineY) {
+                isMouseInDockArea = false;
+            }
+
+            if (isMouseInDockArea) {
+                m_hideGraceFrames = 12; // ~600ms grace period
             } else {
-                m_targetHideProgress = 1.0f;
+                if (m_hideGraceFrames > 0) {
+                    m_hideGraceFrames--;
+                } else {
+                    m_targetHideProgress = 1.0f;
+                }
+            }
+        } else {
+            // Dock is currently retreating or hidden (m_targetHideProgress == 1.0f):
+            // IMPORTANT Anti-Flicker: Only reveal if user explicitly triggered reveal or intentionally moved into resting dock.
+            // A retreating window sweeping over the mouse will NOT re-trigger reveal!
+            if (isTriggerActive || isMouseInRestingDock) {
+                m_targetHideProgress = 0.0f;
+                m_hideGraceFrames = 12;
             }
         }
     }
@@ -1357,6 +1421,32 @@ LRESULT CALLBACK DockWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM 
 
 LRESULT DockWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
+    case WM_NCHITTEST: {
+        short screenX = static_cast<short>(LOWORD(lParam));
+        short screenY = static_cast<short>(HIWORD(lParam));
+        POINT pt = { screenX, screenY };
+        ScreenToClient(m_hwnd, &pt);
+
+        // When mostly hidden (retreating or hidden):
+        // Only the top 4px trigger strip captures mouse. The rest of the window is transparent to clicks!
+        if (m_hideProgress > 0.85f) {
+            if (pt.y >= 0 && pt.y <= 4) {
+                return HTCLIENT;
+            }
+            return HTTRANSPARENT;
+        }
+
+        // When visible: only the visual dock bar and magnified icons capture mouse
+        float barBottom = m_barHeight - 6.0f;
+        float barTop = barBottom - m_barVisualHeight;
+        float iconTop = barTop - (m_maxSize - m_baseSize) - 10.0f;
+
+        if (pt.y >= iconTop && pt.y <= m_barHeight && pt.x >= 0 && pt.x <= static_cast<int>(m_barWidth)) {
+            return HTCLIENT;
+        }
+        return HTTRANSPARENT;
+    }
+
     case WM_MOUSEMOVE:
         OnMouseMove(LOWORD(lParam), HIWORD(lParam));
         return 0;
