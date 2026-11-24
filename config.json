@@ -1,0 +1,69 @@
+{
+  "general": {
+    "autoStart": false,
+    "hideWindowsTaskbar": false,
+    "gameModeSuspend": true,
+    "showTrayIcon": true,
+    "notifyOnAppDrop": true
+  },
+  "dock": {
+    "baseIconSize": 58,
+    "maxIconSize": 92,
+    "spread": 155,
+    "bottomMargin": 36,
+    "barVisualHeight": 78,
+    "bgOpacity": 0.8,
+    "showRunningDot": true,
+    "showTooltip": true,
+    "autoHide": true,
+    "slideSpeed": 1,
+    "pinnedApps": [
+      {
+        "name": "启动台",
+        "icon": "launchpad",
+        "action": "launchpad"
+      },
+      {
+        "name": "资源管理器",
+        "path": "C:\\Windows\\explorer.exe",
+        "action": "launch"
+      },
+      {
+        "name": "回收站",
+        "action": "recyclebin",
+        "path": "shell:RecycleBinFolder"
+      },
+      {
+        "name": "设置",
+        "action": "settings",
+        "icon": "settings"
+      }
+    ]
+  },
+  "drawer": {
+    "columns": 7,
+    "iconSize": 58,
+    "autoCloseOnBlur": true,
+    "searchAutoFocus": true,
+    "blurMode": 0
+  },
+  "widgets": {
+    "clockEnabled": true,
+    "clock24Hour": true,
+    "clockShowSeconds": true,
+    "clockShowDate": true,
+    "clockX": 60,
+    "clockY": 60,
+    "diskEnabled": true,
+    "diskRefreshMin": 15,
+    "diskX": 60,
+    "diskY": 180,
+    "lockPosition": false,
+    "opacity": 0.85
+  },
+  "appearance": {
+    "themePreset": 2,
+    "accentColor": 0,
+    "cornerRadius": 24
+  }
+}

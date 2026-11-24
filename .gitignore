@@ -1,0 +1,24 @@
+# Build outputs & binaries
+bin/
+build/
+*.res.o
+*.obj
+*.exe
+*.pdb
+
+# Temporary scratch folder
+scratch/
+
+# IDE / Editor configuration
+.vscode/
+.vs/
+*.suo
+*.user
+
+# System & temporary logs
+*.log
+*.tmp
+*.bak
+Thumbs.db
+Desktop.ini
+.DS_Store
