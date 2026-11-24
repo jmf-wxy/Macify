@@ -98,6 +98,46 @@ struct PinnedAppConfig {
 };
 
 struct AppConfig {
+    AppConfig() {
+        InitWidgetDefaults();
+    }
+
+    void InitWidgetDefaults() {
+        int screenW = GetSystemMetrics(SM_CXSCREEN);
+        if (screenW <= 0) screenW = 1920;
+        float defaultX = static_cast<float>(screenW) - 220.0f - 25.0f;
+        float curY = 25.0f;
+
+        widgetClockX = defaultX;
+        widgetClockY = curY;
+        widgetClockW = 220.0f;
+        widgetClockH = 90.0f;
+        curY += widgetClockH + 10.0f;
+
+        widgetDiskX = defaultX;
+        widgetDiskY = curY;
+        widgetDiskW = 220.0f;
+        widgetDiskH = 115.0f;
+        curY += widgetDiskH + 10.0f;
+
+        widgetSysMonX = defaultX;
+        widgetSysMonY = curY;
+        widgetSysMonW = 220.0f;
+        widgetSysMonH = 115.0f;
+        curY += widgetSysMonH + 10.0f;
+
+        widgetCalendarX = defaultX;
+        widgetCalendarY = curY;
+        widgetCalendarW = 220.0f;
+        widgetCalendarH = 165.0f;
+        curY += widgetCalendarH + 10.0f;
+
+        widgetMemoX = defaultX;
+        widgetMemoY = curY;
+        widgetMemoW = 220.0f;
+        widgetMemoH = 120.0f;
+    }
+
     // 1. 常规与系统 (General & System)
     bool autoStart = false;
     bool hideWindowsTaskbar = false;
@@ -281,39 +321,19 @@ struct AppConfig {
         customApps.clear();
         hiddenApps.clear();
 
+        InitWidgetDefaults();
+
         widgetClockEnabled = true;
         widgetClock24Hour = true;
         widgetClockShowSeconds = true;
         widgetClockShowDate = true;
-        widgetClockX = 40.0f;
-        widgetClockY = 40.0f;
-        widgetClockW = 220.0f;
-        widgetClockH = 90.0f;
 
         widgetDiskEnabled = true;
         widgetDiskRefreshMin = 15;
-        widgetDiskX = 40.0f;
-        widgetDiskY = 145.0f;
-        widgetDiskW = 220.0f;
-        widgetDiskH = 115.0f;
 
         widgetSysMonEnabled = true;
-        widgetSysMonX = 40.0f;
-        widgetSysMonY = 275.0f;
-        widgetSysMonW = 220.0f;
-        widgetSysMonH = 115.0f;
-
         widgetCalendarEnabled = true;
-        widgetCalendarX = 40.0f;
-        widgetCalendarY = 405.0f;
-        widgetCalendarW = 220.0f;
-        widgetCalendarH = 165.0f;
-
         widgetMemoEnabled = false;
-        widgetMemoX = 40.0f;
-        widgetMemoY = 585.0f;
-        widgetMemoW = 220.0f;
-        widgetMemoH = 120.0f;
 
         widgetLockPosition = false;
         widgetOpacity = 0.85f;

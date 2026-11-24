@@ -39,6 +39,7 @@ private:
 
     void Render();
     void OnTimer();
+    void ApplyMagneticSnapping(IWidget* activeWidget, float& x, float& y, float w, float h);
 
 private:
     HWND m_hwnd;

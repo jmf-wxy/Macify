@@ -29,14 +29,39 @@
         "action": "launch"
       },
       {
+        "name": "哔哩哔哩",
+        "path": "C:\\Users\\wengx\\Desktop\\哔哩哔哩.lnk",
+        "action": "launch"
+      },
+      {
+        "name": "axolotl launcher",
+        "path": "C:\\Users\\wengx\\Desktop\\axolotl launcher.lnk",
+        "action": "launch"
+      },
+      {
+        "name": "鹰角启动器",
+        "path": "C:\\Users\\wengx\\Desktop\\鹰角启动器.lnk",
+        "action": "launch"
+      },
+      {
+        "name": "蓝色星原：旅谣",
+        "path": "C:\\Users\\wengx\\Desktop\\蓝色星原：旅谣.lnk",
+        "action": "launch"
+      },
+      {
+        "name": "WeGame",
+        "path": "C:\\Users\\wengx\\Desktop\\WeGame.lnk",
+        "action": "launch"
+      },
+      {
         "name": "回收站",
-        "action": "recyclebin",
-        "path": "shell:RecycleBinFolder"
+        "path": "shell:RecycleBinFolder",
+        "action": "recyclebin"
       },
       {
         "name": "设置",
-        "action": "settings",
-        "icon": "settings"
+        "icon": "settings",
+        "action": "settings"
       }
     ]
   },
@@ -45,36 +70,49 @@
     "iconSize": 58,
     "autoCloseOnBlur": true,
     "searchAutoFocus": true,
-    "blurMode": 0
+    "blurMode": 0,
+    "customApps": [
+      {
+        "name": "雷小伊脱机日常 2.0.9",
+        "path": "F:\\seer\\h5\\雷小伊脱机日常 2.0.9.exe"
+      }
+    ]
+,
+    "hiddenApps": [
+      "明日方舟：终末地",
+      "C:\\Users\\Public\\Desktop\\明日方舟：终末地.lnk",
+      "明日方舟",
+      "C:\\Users\\Public\\Desktop\\明日方舟.lnk"
+    ]
   },
   "widgets": {
     "clockEnabled": true,
     "clock24Hour": true,
     "clockShowSeconds": true,
     "clockShowDate": true,
-    "clockX": 40,
-    "clockY": 40,
+    "clockX": 2315,
+    "clockY": 25,
     "clockW": 220,
     "clockH": 90,
     "diskEnabled": true,
     "diskRefreshMin": 15,
-    "diskX": 40,
-    "diskY": 145,
+    "diskX": 2315,
+    "diskY": 125,
     "diskW": 220,
     "diskH": 115,
     "sysMonEnabled": true,
-    "sysMonX": 40,
-    "sysMonY": 275,
+    "sysMonX": 2315,
+    "sysMonY": 250,
     "sysMonW": 220,
     "sysMonH": 115,
     "calendarEnabled": true,
-    "calendarX": 40,
-    "calendarY": 405,
+    "calendarX": 2315,
+    "calendarY": 375,
     "calendarW": 220,
     "calendarH": 165,
     "memoEnabled": false,
-    "memoX": 40,
-    "memoY": 585,
+    "memoX": 2315,
+    "memoY": 550,
     "memoW": 220,
     "memoH": 120,
     "lockPosition": false,

@@ -6,6 +6,7 @@
 #include "MemoWidget.h"
 #include "../core/Backdrop.h"
 #include <algorithm>
+#include <cmath>
 
 namespace Widgets {
 
@@ -50,7 +51,7 @@ bool WidgetHostWindow::Create() {
     int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
     m_hwnd = CreateWindowExW(
-        WS_EX_TOOLWINDOW,
+        WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
         CLASS_NAME,
         L"DesktopWidgetsHost",
         WS_POPUP,
@@ -222,6 +223,32 @@ LRESULT CALLBACK WidgetHostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, L
 
 LRESULT WidgetHostWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
+    case WM_MOUSEACTIVATE:
+        // Do not activate the widget host window when clicked
+        return MA_NOACTIVATE;
+
+    case WM_WINDOWPOSCHANGING: {
+        auto* pwp = reinterpret_cast<WINDOWPOS*>(lParam);
+        if (pwp && !(pwp->flags & SWP_NOZORDER)) {
+            // Keep widgets strictly at desktop background layer
+            pwp->hwndInsertAfter = HWND_BOTTOM;
+        }
+        return 0;
+    }
+
+    case WM_ACTIVATE: {
+        if (LOWORD(wParam) != WA_INACTIVE) {
+            SetWindowPos(m_hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        }
+        return 0;
+    }
+
+    case WM_CAPTURECHANGED: {
+        m_dragMode = DragMode::None;
+        m_activeWidget = nullptr;
+        return 0;
+    }
+
     case WM_TIMER:
         if (wParam == TIMER_UPDATE_ID) {
             OnTimer();
@@ -237,10 +264,6 @@ LRESULT WidgetHostWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) 
     }
 
     case WM_NCHITTEST: {
-        if (m_dragMode != DragMode::None) {
-            return HTCLIENT;
-        }
-
         short screenX = static_cast<short>(LOWORD(lParam));
         short screenY = static_cast<short>(HIWORD(lParam));
         POINT pt = { screenX, screenY };
@@ -328,7 +351,15 @@ LRESULT WidgetHostWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) 
         if (m_dragMode == DragMode::Move && m_activeWidget) {
             float dx = static_cast<float>(pt.x - m_dragStartMouse.x);
             float dy = static_cast<float>(pt.y - m_dragStartMouse.y);
-            m_activeWidget->SetPosition(m_dragStartWidgetX + dx, m_dragStartWidgetY + dy);
+            float newX = m_dragStartWidgetX + dx;
+            float newY = m_dragStartWidgetY + dy;
+            D2D1_RECT_F b = m_activeWidget->GetBounds();
+            float w = b.right - b.left;
+            float h = b.bottom - b.top;
+
+            ApplyMagneticSnapping(m_activeWidget, newX, newY, w, h);
+
+            m_activeWidget->SetPosition(newX, newY);
             InvalidateRect(m_hwnd, nullptr, FALSE);
             return 0;
         } else if (m_dragMode == DragMode::Resize && m_activeWidget) {
@@ -344,17 +375,19 @@ LRESULT WidgetHostWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) 
     }
 
     case WM_LBUTTONUP: {
-        if (m_dragMode != DragMode::None) {
+        if (GetCapture() == m_hwnd) {
             ReleaseCapture();
+        }
+        if (m_dragMode != DragMode::None) {
             if (m_onBoundsChanged && m_activeWidget) {
                 D2D1_RECT_F b = m_activeWidget->GetBounds();
                 m_onBoundsChanged(m_activeWidget->GetId(), b.left, b.top, b.right - b.left, b.bottom - b.top);
             }
             m_dragMode = DragMode::None;
             m_activeWidget = nullptr;
-            return 0;
         }
-        break;
+        SetWindowPos(m_hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        return 0;
     }
 
     case WM_ERASEBKGND:
@@ -365,6 +398,126 @@ LRESULT WidgetHostWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) 
     }
 
     return DefWindowProcW(m_hwnd, msg, wParam, lParam);
+}
+
+void WidgetHostWindow::ApplyMagneticSnapping(IWidget* activeWidget, float& x, float& y, float w, float h) {
+    if (!activeWidget) return;
+
+    constexpr float SNAP_GAP = 10.0f;
+    constexpr float SNAP_DIST = 14.0f;
+
+    int screenWidth = GetSystemMetrics(SM_CXSCREEN);
+    if (screenWidth <= 0) screenWidth = 1920;
+
+    float bestDiffX = SNAP_DIST + 1.0f;
+    float snapX = x;
+    bool snappedX = false;
+
+    float bestDiffY = SNAP_DIST + 1.0f;
+    float snapY = y;
+    bool snappedY = false;
+
+    // 1. Screen edge snapping (top 25px & right 25px margins)
+    float screenRightMargin = static_cast<float>(screenWidth) - w - 25.0f;
+    if (std::abs(x - screenRightMargin) <= SNAP_DIST) {
+        bestDiffX = std::abs(x - screenRightMargin);
+        snapX = screenRightMargin;
+        snappedX = true;
+    }
+    if (std::abs(y - 25.0f) <= SNAP_DIST) {
+        bestDiffY = std::abs(y - 25.0f);
+        snapY = 25.0f;
+        snappedY = true;
+    }
+
+    // 2. Snap to other enabled widgets
+    for (const auto& other : m_widgets) {
+        if (!other || other.get() == activeWidget || !other->IsEnabled()) continue;
+
+        D2D1_RECT_F ob = other->GetBounds();
+
+        // Horizontal proximity
+        bool xNear = (x + w >= ob.left - 40.0f && x <= ob.right + 40.0f);
+        // Vertical proximity
+        bool yNear = (y + h >= ob.top - 40.0f && y <= ob.bottom + 40.0f);
+
+        // --- Y-axis Snapping ---
+        if (xNear) {
+            // A below B with 10px gap
+            float targetYBelow = ob.bottom + SNAP_GAP;
+            float diffBelow = std::abs(y - targetYBelow);
+            if (diffBelow <= SNAP_DIST && diffBelow < bestDiffY) {
+                bestDiffY = diffBelow;
+                snapY = targetYBelow;
+                snappedY = true;
+            }
+
+            // A above B with 10px gap
+            float targetYAbove = ob.top - h - SNAP_GAP;
+            float diffAbove = std::abs(y - targetYAbove);
+            if (diffAbove <= SNAP_DIST && diffAbove < bestDiffY) {
+                bestDiffY = diffAbove;
+                snapY = targetYAbove;
+                snappedY = true;
+            }
+
+            // Top-align with B
+            float diffTop = std::abs(y - ob.top);
+            if (diffTop <= SNAP_DIST && diffTop < bestDiffY) {
+                bestDiffY = diffTop;
+                snapY = ob.top;
+                snappedY = true;
+            }
+
+            // Bottom-align with B
+            float diffBottom = std::abs((y + h) - ob.bottom);
+            if (diffBottom <= SNAP_DIST && diffBottom < bestDiffY) {
+                bestDiffY = diffBottom;
+                snapY = ob.bottom - h;
+                snappedY = true;
+            }
+        }
+
+        // --- X-axis Snapping ---
+        if (yNear) {
+            // A to the right of B with 10px gap
+            float targetXRight = ob.right + SNAP_GAP;
+            float diffRight = std::abs(x - targetXRight);
+            if (diffRight <= SNAP_DIST && diffRight < bestDiffX) {
+                bestDiffX = diffRight;
+                snapX = targetXRight;
+                snappedX = true;
+            }
+
+            // A to the left of B with 10px gap
+            float targetXLeft = ob.left - w - SNAP_GAP;
+            float diffLeft = std::abs(x - targetXLeft);
+            if (diffLeft <= SNAP_DIST && diffLeft < bestDiffX) {
+                bestDiffX = diffLeft;
+                snapX = targetXLeft;
+                snappedX = true;
+            }
+
+            // Left-align with B
+            float diffLeftAlign = std::abs(x - ob.left);
+            if (diffLeftAlign <= SNAP_DIST && diffLeftAlign < bestDiffX) {
+                bestDiffX = diffLeftAlign;
+                snapX = ob.left;
+                snappedX = true;
+            }
+
+            // Right-align with B
+            float diffRightAlign = std::abs((x + w) - ob.right);
+            if (diffRightAlign <= SNAP_DIST && diffRightAlign < bestDiffX) {
+                bestDiffX = diffRightAlign;
+                snapX = ob.right - w;
+                snappedX = true;
+            }
+        }
+    }
+
+    if (snappedX) x = snapX;
+    if (snappedY) y = snapY;
 }
 
 } // namespace Widgets
