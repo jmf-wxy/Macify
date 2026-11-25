@@ -84,6 +84,8 @@ bool WidgetHostWindow::Create() {
     // 1-second update timer for clock & widgets
     SetTimer(m_hwnd, TIMER_UPDATE_ID, 1000, nullptr);
 
+    UpdateWindowRegion();
+
     return true;
 }
 
@@ -91,6 +93,9 @@ void WidgetHostWindow::Show(bool show) {
     if (m_hwnd) {
         ShowWindow(m_hwnd, show ? SW_SHOWNOACTIVATE : SW_HIDE);
         SetWindowPos(m_hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        if (show) {
+            UpdateWindowRegion();
+        }
         UpdateWindow(m_hwnd);
     }
 }
@@ -106,6 +111,7 @@ void WidgetHostWindow::Resume() {
     SetTimer(m_hwnd, TIMER_UPDATE_ID, 1000, nullptr);
     ShowWindow(m_hwnd, SW_SHOWNOACTIVATE);
     SetWindowPos(m_hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    UpdateWindowRegion();
     Render();
 }
 
@@ -152,6 +158,8 @@ void WidgetHostWindow::ApplySettings(bool clockEnabled, bool is24Hour, bool show
             w->SetEnabled(memoEnabled);
         }
     }
+
+    UpdateWindowRegion();
 
     if (m_hwnd) {
         InvalidateRect(m_hwnd, nullptr, FALSE);
@@ -246,6 +254,7 @@ LRESULT WidgetHostWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) 
     case WM_CAPTURECHANGED: {
         m_dragMode = DragMode::None;
         m_activeWidget = nullptr;
+        UpdateWindowRegion();
         return 0;
     }
 
@@ -334,9 +343,11 @@ LRESULT WidgetHostWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) 
                 if (inGrip && !m_lockPosition) {
                     m_dragMode = DragMode::Resize;
                     SetCapture(m_hwnd);
+                    SetWindowRgn(m_hwnd, nullptr, FALSE);
                 } else if (!m_lockPosition) {
                     m_dragMode = DragMode::Move;
                     SetCapture(m_hwnd);
+                    SetWindowRgn(m_hwnd, nullptr, FALSE);
                 } else {
                     m_dragMode = DragMode::None;
                 }
@@ -409,6 +420,7 @@ LRESULT WidgetHostWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) 
         }
         m_dragMode = DragMode::None;
         m_activeWidget = nullptr;
+        UpdateWindowRegion();
         SetWindowPos(m_hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         return 0;
     }
@@ -669,6 +681,19 @@ void WidgetHostWindow::ApplyResizeSnapping(IWidget* activeWidget, float& w, floa
     if (snappedW) w = snapW;
     if (snappedH) h = snapH;
 
+    // Enforce proportional scaling when resizing
+    float baseW = activeWidget->GetBaseSize().width;
+    float baseH = activeWidget->GetBaseSize().height;
+    if (baseW > 0.0f && baseH > 0.0f) {
+        if (snappedW && !snappedH) {
+            h = std::round(w * (baseH / baseW));
+        } else if (snappedH && !snappedW) {
+            w = std::round(h * (baseW / baseH));
+        } else if (!snappedW && !snappedH) {
+            h = std::round(w * (baseH / baseW));
+        }
+    }
+
     // Clamp to min size
     w = (std::max)(minW, w);
     h = (std::max)(minH, h);
@@ -684,7 +709,29 @@ void WidgetHostWindow::SyncWidgetBounds(float clockX, float clockY, float clockW
     if (auto* w = FindWidget(L"widget_sysmon")) { w->SetPosition(sysX, sysY); w->SetSize(sysW, sysH); }
     if (auto* w = FindWidget(L"widget_calendar")) { w->SetPosition(calX, calY); w->SetSize(calW, calH); }
     if (auto* w = FindWidget(L"widget_memo")) { w->SetPosition(memoX, memoY); w->SetSize(memoW, memoH); }
+    UpdateWindowRegion();
     InvalidateRect(m_hwnd, nullptr, FALSE);
+}
+
+void WidgetHostWindow::UpdateWindowRegion() {
+    if (!m_hwnd) return;
+
+    HRGN totalRgn = CreateRectRgn(0, 0, 0, 0);
+    for (const auto& w : m_widgets) {
+        if (!w || !w->IsEnabled()) continue;
+        D2D1_RECT_F b = w->GetBounds();
+        int left = static_cast<int>(std::floor(b.left)) - 4;
+        int top = static_cast<int>(std::floor(b.top)) - 4;
+        int right = static_cast<int>(std::ceil(b.right)) + 4;
+        int bottom = static_cast<int>(std::ceil(b.bottom)) + 4;
+        HRGN wr = CreateRectRgn(left, top, right, bottom);
+        if (wr) {
+            CombineRgn(totalRgn, totalRgn, wr, RGN_OR);
+            DeleteObject(wr);
+        }
+    }
+
+    SetWindowRgn(m_hwnd, totalRgn, TRUE);
 }
 
 } // namespace Widgets

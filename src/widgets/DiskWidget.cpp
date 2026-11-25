@@ -148,14 +148,19 @@ void DiskWidget::OnRender(ID2D1RenderTarget* pRT) {
     D2D1_MATRIX_3X2_F oldTrans;
     pRT->GetTransform(&oldTrans);
 
-    float scaleX = m_width / m_baseWidth;
-    float scaleY = m_height / m_baseHeight;
-    D2D1_MATRIX_3X2_F scaleTrans = D2D1::Matrix3x2F::Scale(scaleX, scaleY, D2D1::Point2F(m_x, m_y));
+    float scaleX = (m_baseWidth > 0) ? (m_width / m_baseWidth) : 1.0f;
+    float scaleY = (m_baseHeight > 0) ? (m_height / m_baseHeight) : 1.0f;
+    float scale = (std::min)(scaleX, scaleY);
+    if (scale <= 0.01f) scale = 1.0f;
+    D2D1_MATRIX_3X2_F scaleTrans = D2D1::Matrix3x2F::Scale(scale, scale, D2D1::Point2F(m_x, m_y));
     pRT->SetTransform(scaleTrans * oldTrans);
+
+    float virtualW = m_width / scale;
+    float virtualH = m_height / scale;
 
     // 1. Card backdrop
     D2D1_ROUNDED_RECT cardRect = D2D1::RoundedRect(
-        D2D1::RectF(m_x, m_y, m_x + m_baseWidth, m_y + m_baseHeight),
+        D2D1::RectF(m_x, m_y, m_x + virtualW, m_y + virtualH),
         16.0f,
         16.0f
     );
@@ -179,27 +184,27 @@ void DiskWidget::OnRender(ID2D1RenderTarget* pRT) {
                 labelBuf,
                 static_cast<UINT32>(wcslen(labelBuf)),
                 m_pTitleFormat,
-                D2D1::RectF(m_x + 14.0f, curY, m_x + 95.0f, curY + 16.0f),
+                D2D1::RectF(m_x + 14.0f, curY, m_x + 105.0f, curY + 16.0f),
                 m_pBrushText
             );
         }
 
-        // Subtext: "余 24G/256G" right aligned
+        // Subtext: "24G/256G" right aligned (without '余')
         wchar_t capBuf[64];
-        swprintf_s(capBuf, L"余 %.0fG/%.0fG", disk.freeGB, disk.totalGB);
+        swprintf_s(capBuf, L"%.0fG/%.0fG", disk.freeGB, disk.totalGB);
         if (m_pSubFormat && m_pBrushSubText) {
             pRT->DrawTextW(
                 capBuf,
                 static_cast<UINT32>(wcslen(capBuf)),
                 m_pSubFormat,
-                D2D1::RectF(m_x + 95.0f, curY, m_x + m_baseWidth - 14.0f, curY + 16.0f),
+                D2D1::RectF(m_x + 95.0f, curY, m_x + virtualW - 14.0f, curY + 16.0f),
                 m_pBrushSubText
             );
         }
 
         // Progress bar
         float barLeft = m_x + 14.0f;
-        float barRight = m_x + m_baseWidth - 14.0f;
+        float barRight = m_x + virtualW - 14.0f;
         float barTop = curY + 18.0f;
         float barHeight = 6.0f;
 

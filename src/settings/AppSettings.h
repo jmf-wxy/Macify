@@ -5,6 +5,7 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
+#include <cmath>
 #include <d2d1.h>
 #include "../widgets/MemoWidget.h"
 
@@ -264,15 +265,41 @@ struct AppConfig {
             case 3: targetW = 300.0f; break;
         }
 
+        float ratio = targetW / 220.0f;
         int screenW = GetSystemMetrics(SM_CXSCREEN);
         if (screenW <= 0) screenW = 1920;
         float newX = static_cast<float>(screenW) - targetW - 25.0f;
 
-        widgetClockX = newX; widgetClockW = targetW;
-        widgetDiskX = newX; widgetDiskW = targetW;
-        widgetSysMonX = newX; widgetSysMonW = targetW;
-        widgetCalendarX = newX; widgetCalendarW = targetW;
-        widgetMemoX = newX; widgetMemoW = targetW;
+        // Proportional heights for all widgets based on their 220px base dimensions
+        float clockBaseH = 90.0f;
+        float diskBaseH = 156.0f;
+        float sysMonBaseH = 115.0f;
+        float calBaseH = 165.0f;
+        float memoBaseH = 135.0f;
+
+        widgetClockW = targetW; widgetClockH = std::round(clockBaseH * ratio);
+        widgetDiskW = targetW; widgetDiskH = std::round(diskBaseH * ratio);
+        widgetSysMonW = targetW; widgetSysMonH = std::round(sysMonBaseH * ratio);
+        widgetCalendarW = targetW; widgetCalendarH = std::round(calBaseH * ratio);
+        widgetMemoW = targetW; widgetMemoH = std::round(memoBaseH * ratio);
+
+        // Reposition sequentially from top-right with 10px spacing
+        float curY = 25.0f;
+        float gap = 10.0f;
+
+        widgetClockX = newX; widgetClockY = curY;
+        if (widgetClockEnabled) curY += widgetClockH + gap;
+
+        widgetDiskX = newX; widgetDiskY = curY;
+        if (widgetDiskEnabled) curY += widgetDiskH + gap;
+
+        widgetSysMonX = newX; widgetSysMonY = curY;
+        if (widgetSysMonEnabled) curY += widgetSysMonH + gap;
+
+        widgetCalendarX = newX; widgetCalendarY = curY;
+        if (widgetCalendarEnabled) curY += widgetCalendarH + gap;
+
+        widgetMemoX = newX; widgetMemoY = curY;
     }
 
     void ResetWidgetLayout() {

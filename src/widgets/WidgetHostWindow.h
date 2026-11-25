@@ -44,6 +44,7 @@ private:
 
     void Render();
     void OnTimer();
+    void UpdateWindowRegion();
     void ApplyMagneticSnapping(IWidget* activeWidget, float& x, float& y, float w, float h);
     void ApplyResizeSnapping(IWidget* activeWidget, float& w, float& h);
 

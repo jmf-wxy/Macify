@@ -127,14 +127,19 @@ void ClockWidget::OnRender(ID2D1RenderTarget* pRT) {
     D2D1_MATRIX_3X2_F oldTrans;
     pRT->GetTransform(&oldTrans);
 
-    float scaleX = m_width / m_baseWidth;
-    float scaleY = m_height / m_baseHeight;
-    D2D1_MATRIX_3X2_F scaleTrans = D2D1::Matrix3x2F::Scale(scaleX, scaleY, D2D1::Point2F(m_x, m_y));
+    float scaleX = (m_baseWidth > 0) ? (m_width / m_baseWidth) : 1.0f;
+    float scaleY = (m_baseHeight > 0) ? (m_height / m_baseHeight) : 1.0f;
+    float scale = (std::min)(scaleX, scaleY);
+    if (scale <= 0.01f) scale = 1.0f;
+    D2D1_MATRIX_3X2_F scaleTrans = D2D1::Matrix3x2F::Scale(scale, scale, D2D1::Point2F(m_x, m_y));
     pRT->SetTransform(scaleTrans * oldTrans);
+
+    float virtualW = m_width / scale;
+    float virtualH = m_height / scale;
 
     // 1. Draw rounded card
     D2D1_ROUNDED_RECT cardRect = D2D1::RoundedRect(
-        D2D1::RectF(m_x, m_y, m_x + m_baseWidth, m_y + m_baseHeight),
+        D2D1::RectF(m_x, m_y, m_x + virtualW, m_y + virtualH),
         16.0f,
         16.0f
     );
@@ -143,7 +148,7 @@ void ClockWidget::OnRender(ID2D1RenderTarget* pRT) {
 
     // 2. Draw Time
     if (m_pTimeFormat && m_pBrushTimeText) {
-        D2D1_RECT_F timeRect = D2D1::RectF(m_x, m_y + 8.0f, m_x + m_baseWidth, m_y + 54.0f);
+        D2D1_RECT_F timeRect = D2D1::RectF(m_x, m_y + 8.0f, m_x + virtualW, m_y + 54.0f);
         pRT->DrawTextW(
             m_timeString.c_str(),
             static_cast<UINT32>(m_timeString.length()),
@@ -155,7 +160,7 @@ void ClockWidget::OnRender(ID2D1RenderTarget* pRT) {
 
     // 3. Draw Date
     if (m_pDateFormat && m_pBrushDateText) {
-        D2D1_RECT_F dateRect = D2D1::RectF(m_x, m_y + 54.0f, m_x + m_baseWidth, m_y + 82.0f);
+        D2D1_RECT_F dateRect = D2D1::RectF(m_x, m_y + 54.0f, m_x + virtualW, m_y + 82.0f);
         pRT->DrawTextW(
             m_dateString.c_str(),
             static_cast<UINT32>(m_dateString.length()),

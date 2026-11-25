@@ -147,14 +147,19 @@ void SysMonitorWidget::OnRender(ID2D1RenderTarget* pRT) {
     D2D1_MATRIX_3X2_F oldTrans;
     pRT->GetTransform(&oldTrans);
 
-    float scaleX = m_width / m_baseWidth;
-    float scaleY = m_height / m_baseHeight;
-    D2D1_MATRIX_3X2_F scaleTrans = D2D1::Matrix3x2F::Scale(scaleX, scaleY, D2D1::Point2F(m_x, m_y));
+    float scaleX = (m_baseWidth > 0) ? (m_width / m_baseWidth) : 1.0f;
+    float scaleY = (m_baseHeight > 0) ? (m_height / m_baseHeight) : 1.0f;
+    float scale = (std::min)(scaleX, scaleY);
+    if (scale <= 0.01f) scale = 1.0f;
+    D2D1_MATRIX_3X2_F scaleTrans = D2D1::Matrix3x2F::Scale(scale, scale, D2D1::Point2F(m_x, m_y));
     pRT->SetTransform(scaleTrans * oldTrans);
+
+    float virtualW = m_width / scale;
+    float virtualH = m_height / scale;
 
     // 1. Card backdrop
     D2D1_ROUNDED_RECT cardRect = D2D1::RoundedRect(
-        D2D1::RectF(m_x, m_y, m_x + m_baseWidth, m_y + m_baseHeight),
+        D2D1::RectF(m_x, m_y, m_x + virtualW, m_y + virtualH),
         16.0f,
         16.0f
     );
@@ -162,7 +167,7 @@ void SysMonitorWidget::OnRender(ID2D1RenderTarget* pRT) {
     if (m_pBrushBorder) pRT->DrawRoundedRectangle(cardRect, m_pBrushBorder, 1.2f);
 
     float barLeft = m_x + 14.0f;
-    float barRight = m_x + m_baseWidth - 14.0f;
+    float barRight = m_x + virtualW - 14.0f;
     float barHeight = 6.0f;
 
     // Row 1: CPU

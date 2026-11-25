@@ -233,14 +233,19 @@ void MemoWidget::OnRender(ID2D1RenderTarget* pRT) {
     D2D1_MATRIX_3X2_F oldTrans;
     pRT->GetTransform(&oldTrans);
 
-    float scaleX = m_width / m_baseWidth;
-    float scaleY = m_height / m_baseHeight;
-    D2D1_MATRIX_3X2_F scaleTrans = D2D1::Matrix3x2F::Scale(scaleX, scaleY, D2D1::Point2F(m_x, m_y));
+    float scaleX = (m_baseWidth > 0) ? (m_width / m_baseWidth) : 1.0f;
+    float scaleY = (m_baseHeight > 0) ? (m_height / m_baseHeight) : 1.0f;
+    float scale = (std::min)(scaleX, scaleY);
+    if (scale <= 0.01f) scale = 1.0f;
+    D2D1_MATRIX_3X2_F scaleTrans = D2D1::Matrix3x2F::Scale(scale, scale, D2D1::Point2F(m_x, m_y));
     pRT->SetTransform(scaleTrans * oldTrans);
+
+    float virtualW = m_width / scale;
+    float virtualH = m_height / scale;
 
     // 1. Card backdrop
     D2D1_ROUNDED_RECT cardRect = D2D1::RoundedRect(
-        D2D1::RectF(m_x, m_y, m_x + m_baseWidth, m_y + m_baseHeight),
+        D2D1::RectF(m_x, m_y, m_x + virtualW, m_y + virtualH),
         16.0f,
         16.0f
     );
@@ -265,7 +270,7 @@ void MemoWidget::OnRender(ID2D1RenderTarget* pRT) {
 
     // 3. Header Action buttons
     // [ + ] Button
-    float addBtnRight = m_x + m_baseWidth - 14.0f;
+    float addBtnRight = m_x + virtualW - 14.0f;
     float addBtnLeft = addBtnRight - 20.0f;
     float addBtnTop = m_y + 10.0f;
     float addBtnBottom = addBtnTop + 20.0f;
@@ -300,7 +305,7 @@ void MemoWidget::OnRender(ID2D1RenderTarget* pRT) {
     if (m_pBrushDivider) {
         pRT->DrawLine(
             D2D1::Point2F(m_x + 14.0f, m_y + 34.0f),
-            D2D1::Point2F(m_x + m_baseWidth - 14.0f, m_y + 34.0f),
+            D2D1::Point2F(m_x + virtualW - 14.0f, m_y + 34.0f),
             m_pBrushDivider,
             1.0f
         );
@@ -309,7 +314,7 @@ void MemoWidget::OnRender(ID2D1RenderTarget* pRT) {
     // 5. Memo Content lines
     if (m_items.empty()) {
         if (m_pSubFormat && m_pBrushTextDone) {
-            D2D1_RECT_F emptyRect = D2D1::RectF(m_x + 14.0f, m_y + 44.0f, m_x + m_baseWidth - 14.0f, m_y + 80.0f);
+            D2D1_RECT_F emptyRect = D2D1::RectF(m_x + 14.0f, m_y + 44.0f, m_x + virtualW - 14.0f, m_y + 80.0f);
             pRT->DrawTextW(L"暂无待办，点击右上「+」或右键新增", 18, m_pSubFormat, emptyRect, m_pBrushTextDone);
         }
     } else {
@@ -320,7 +325,7 @@ void MemoWidget::OnRender(ID2D1RenderTarget* pRT) {
             // Row hover background
             if (static_cast<int>(i) == m_hoveredIndex && m_pBrushHover) {
                 D2D1_ROUNDED_RECT rowRect = D2D1::RoundedRect(
-                    D2D1::RectF(m_x + 10.0f, curY - 2.0f, m_x + m_baseWidth - 10.0f, curY + 22.0f),
+                    D2D1::RectF(m_x + 10.0f, curY - 2.0f, m_x + virtualW - 10.0f, curY + 22.0f),
                     4.0f, 4.0f
                 );
                 pRT->FillRoundedRectangle(rowRect, m_pBrushHover);
@@ -347,7 +352,7 @@ void MemoWidget::OnRender(ID2D1RenderTarget* pRT) {
 
             // Text
             float textLeft = m_x + 34.0f;
-            float textRight = m_x + m_baseWidth - 26.0f;
+            float textRight = m_x + virtualW - 26.0f;
             D2D1_RECT_F textRect = D2D1::RectF(textLeft, curY, textRight, curY + 20.0f);
             ID2D1SolidColorBrush* pTxtBrush = item.done ? m_pBrushTextDone : m_pBrushText;
             if (m_pTextFormat && pTxtBrush) {
@@ -373,7 +378,7 @@ void MemoWidget::OnRender(ID2D1RenderTarget* pRT) {
 
             // Delete '×' button on hover
             if (static_cast<int>(i) == m_hoveredIndex) {
-                float delX = m_x + m_baseWidth - 20.0f;
+                float delX = m_x + virtualW - 20.0f;
                 float delY = curY + 1.0f;
                 D2D1_RECT_F delRect = D2D1::RectF(delX, delY, delX + 14.0f, delY + 18.0f);
                 if (m_pIconFormat && m_pBrushTextDone) {
@@ -391,16 +396,19 @@ void MemoWidget::OnRender(ID2D1RenderTarget* pRT) {
 void MemoWidget::OnMouseEvent(const MouseEvent& evt) {
     float scaleX = (m_width > 0 && m_baseWidth > 0) ? (m_width / m_baseWidth) : 1.0f;
     float scaleY = (m_height > 0 && m_baseHeight > 0) ? (m_height / m_baseHeight) : 1.0f;
+    float scale = (std::min)(scaleX, scaleY);
+    if (scale <= 0.01f) scale = 1.0f;
 
-    float localX = m_x + (static_cast<float>(evt.x) - m_x) / scaleX;
-    float localY = m_y + (static_cast<float>(evt.y) - m_y) / scaleY;
+    float localX = m_x + (static_cast<float>(evt.x) - m_x) / scale;
+    float localY = m_y + (static_cast<float>(evt.y) - m_y) / scale;
+    float virtualW = m_width / scale;
 
     if (evt.type == MouseEvent::Type::Move) {
         m_mouseX = evt.x;
         m_mouseY = evt.y;
 
         // Header buttons
-        float addBtnRight = m_x + m_baseWidth - 14.0f;
+        float addBtnRight = m_x + virtualW - 14.0f;
         float addBtnLeft = addBtnRight - 20.0f;
         m_hoverAddBtn = (localX >= addBtnLeft && localX <= addBtnRight && localY >= m_y + 10.0f && localY <= m_y + 30.0f);
 
@@ -413,10 +421,10 @@ void MemoWidget::OnMouseEvent(const MouseEvent& evt) {
         m_hoverDeleteBtn = false;
         float curY = m_y + 40.0f;
         for (size_t i = 0; i < m_items.size(); ++i) {
-            if (localY >= curY - 2.0f && localY <= curY + 22.0f && localX >= m_x + 10.0f && localX <= m_x + m_baseWidth - 10.0f) {
+            if (localY >= curY - 2.0f && localY <= curY + 22.0f && localX >= m_x + 10.0f && localX <= m_x + virtualW - 10.0f) {
                 m_hoveredIndex = static_cast<int>(i);
-                float delX = m_x + m_baseWidth - 22.0f;
-                if (localX >= delX - 4.0f && localX <= m_x + m_baseWidth - 8.0f) {
+                float delX = m_x + virtualW - 22.0f;
+                if (localX >= delX - 4.0f && localX <= m_x + virtualW - 8.0f) {
                     m_hoverDeleteBtn = true;
                 }
                 break;
@@ -425,7 +433,7 @@ void MemoWidget::OnMouseEvent(const MouseEvent& evt) {
         }
     } else if (evt.type == MouseEvent::Type::LeftUp) {
         // Click Add Button
-        float addBtnRight = m_x + m_baseWidth - 14.0f;
+        float addBtnRight = m_x + virtualW - 14.0f;
         float addBtnLeft = addBtnRight - 20.0f;
         if (localX >= addBtnLeft && localX <= addBtnRight && localY >= m_y + 10.0f && localY <= m_y + 30.0f) {
             std::wstring newText;
@@ -446,9 +454,9 @@ void MemoWidget::OnMouseEvent(const MouseEvent& evt) {
         // Click Row item
         float curY = m_y + 40.0f;
         for (size_t i = 0; i < m_items.size(); ++i) {
-            if (localY >= curY - 2.0f && localY <= curY + 22.0f && localX >= m_x + 10.0f && localX <= m_x + m_baseWidth - 10.0f) {
-                float delX = m_x + m_baseWidth - 22.0f;
-                if (localX >= delX - 4.0f && localX <= m_x + m_baseWidth - 8.0f) {
+            if (localY >= curY - 2.0f && localY <= curY + 22.0f && localX >= m_x + 10.0f && localX <= m_x + virtualW - 10.0f) {
+                float delX = m_x + virtualW - 22.0f;
+                if (localX >= delX - 4.0f && localX <= m_x + virtualW - 8.0f) {
                     // Clicked delete button
                     RemoveItem(i);
                 } else {

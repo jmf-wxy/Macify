@@ -156,14 +156,19 @@ void CalendarWidget::OnRender(ID2D1RenderTarget* pRT) {
     D2D1_MATRIX_3X2_F oldTrans;
     pRT->GetTransform(&oldTrans);
 
-    float scaleX = m_width / m_baseWidth;
-    float scaleY = m_height / m_baseHeight;
-    D2D1_MATRIX_3X2_F scaleTrans = D2D1::Matrix3x2F::Scale(scaleX, scaleY, D2D1::Point2F(m_x, m_y));
+    float scaleX = (m_baseWidth > 0) ? (m_width / m_baseWidth) : 1.0f;
+    float scaleY = (m_baseHeight > 0) ? (m_height / m_baseHeight) : 1.0f;
+    float scale = (std::min)(scaleX, scaleY);
+    if (scale <= 0.01f) scale = 1.0f;
+    D2D1_MATRIX_3X2_F scaleTrans = D2D1::Matrix3x2F::Scale(scale, scale, D2D1::Point2F(m_x, m_y));
     pRT->SetTransform(scaleTrans * oldTrans);
+
+    float virtualW = m_width / scale;
+    float virtualH = m_height / scale;
 
     // 1. Card backdrop
     D2D1_ROUNDED_RECT cardRect = D2D1::RoundedRect(
-        D2D1::RectF(m_x, m_y, m_x + m_baseWidth, m_y + m_baseHeight),
+        D2D1::RectF(m_x, m_y, m_x + virtualW, m_y + virtualH),
         16.0f,
         16.0f
     );
@@ -172,7 +177,7 @@ void CalendarWidget::OnRender(ID2D1RenderTarget* pRT) {
 
     // 2. Month & Year Title
     if (m_pHeaderFormat && m_pBrushText) {
-        D2D1_RECT_F titleRect = D2D1::RectF(m_x, m_y + 10.0f, m_x + m_baseWidth, m_y + 28.0f);
+        D2D1_RECT_F titleRect = D2D1::RectF(m_x, m_y + 10.0f, m_x + virtualW, m_y + 28.0f);
         pRT->DrawTextW(
             m_headerTitle.c_str(),
             static_cast<UINT32>(m_headerTitle.length()),
@@ -184,7 +189,7 @@ void CalendarWidget::OnRender(ID2D1RenderTarget* pRT) {
 
     // 3. Weekday Headers
     const wchar_t* weekdays[] = { L"日", L"一", L"二", L"三", L"四", L"五", L"六" };
-    float colW = (m_baseWidth - 20.0f) / 7.0f;
+    float colW = (virtualW - 20.0f) / 7.0f;
     float startX = m_x + 10.0f;
     float headerY = m_y + 32.0f;
 
