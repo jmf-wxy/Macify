@@ -1,6 +1,7 @@
 #include "DockWindow.h"
 #include "../core/Backdrop.h"
 #include "../settings/AppSettings.h"
+#include <dwmapi.h>
 #include <cmath>
 #include <algorithm>
 #include <shellapi.h>
@@ -760,6 +761,7 @@ struct OverlapContext {
     int dockRight;
     int screenHeight;
     bool hasOverlap;
+    bool passedDesktopLayer;
 };
 
 static BOOL CALLBACK EnumOverlapProc(HWND hwnd, LPARAM lParam) {
@@ -772,19 +774,34 @@ static BOOL CALLBACK EnumOverlapProc(HWND hwnd, LPARAM lParam) {
     LONG style = GetWindowLongW(hwnd, GWL_STYLE);
     if (!(style & WS_VISIBLE)) return TRUE;
 
-    // Tool windows without taskbar entry are usually popups/tooltips, ignore unless large
     LONG exStyle = GetWindowLongW(hwnd, GWL_EXSTYLE);
+    // Ignore click-through transparent overlays
+    if (exStyle & WS_EX_TRANSPARENT) return TRUE;
+
+    // Tool windows without taskbar entry are usually popups/tooltips, ignore unless large
     if ((exStyle & WS_EX_TOOLWINDOW) && !(exStyle & WS_EX_APPWINDOW)) {
         return TRUE;
     }
 
     wchar_t cls[64] = {};
     GetClassNameW(hwnd, cls, 63);
-    // Ignore desktop wallpaper and system shells
-    if (wcscmp(cls, L"Progman") == 0 || wcscmp(cls, L"WorkerW") == 0 ||
-        wcscmp(cls, L"Shell_TrayWnd") == 0 || wcscmp(cls, L"Shell_SecondaryTrayWnd") == 0) {
+
+    // If we encounter Progman or WorkerW (Desktop), any window enumerated AFTER it in Z-order
+    // is behind the desktop (e.g. Win+D Show Desktop mode)
+    if (wcscmp(cls, L"Progman") == 0 || wcscmp(cls, L"WorkerW") == 0) {
+        ctx->passedDesktopLayer = true;
         return TRUE;
     }
+    if (ctx->passedDesktopLayer) {
+        return TRUE; // Ignore windows hidden behind the desktop
+    }
+
+    // Ignore desktop wallpaper and system shells
+    if (wcscmp(cls, L"Shell_TrayWnd") == 0 || wcscmp(cls, L"Shell_SecondaryTrayWnd") == 0 ||
+        wcscmp(cls, L"Windows.UI.Core.CoreWindow") == 0) {
+        return TRUE;
+    }
+
     // Ignore our own windows
     if (wcscmp(cls, L"MinimalMacDockWindow") == 0 || 
         wcscmp(cls, L"MinimalMacDrawerWindow") == 0 || 
@@ -793,24 +810,36 @@ static BOOL CALLBACK EnumOverlapProc(HWND hwnd, LPARAM lParam) {
         return TRUE;
     }
 
-    // 1. If any visible application window is maximized, it definitely overlaps the bottom
-    if (IsZoomed(hwnd)) {
-        ctx->hasOverlap = true;
-        return FALSE; // Stop enumeration
+    // Filter cloaked windows (hidden by Windows 10/11: UWP suspended, virtual desktop, etc.)
+    int cloaked = 0;
+    if (SUCCEEDED(DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked))) && cloaked) {
+        return TRUE;
     }
 
-    // 2. Check window bounds
+    // Ensure the window is on the same monitor as the dock
+    HMONITOR hWinMon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONULL);
+    HMONITOR hDockMon = MonitorFromWindow(ctx->dockHwnd, MONITOR_DEFAULTTOPRIMARY);
+    if (hWinMon && hDockMon && hWinMon != hDockMon) {
+        return TRUE;
+    }
+
+    // Ignore owned popup windows that are not main app windows
+    if (GetWindow(hwnd, GW_OWNER) != nullptr && !(exStyle & WS_EX_APPWINDOW)) {
+        return TRUE;
+    }
+
+    // Check window bounds
     RECT rc;
     if (GetWindowRect(hwnd, &rc)) {
         int w = rc.right - rc.left;
         int h = rc.bottom - rc.top;
-        if (w >= 200 && h >= 150) {
-            // Window bottom enters the dock vertical area
+        if (w >= 180 && h >= 120) {
+            // Window bottom enters the dock visual vertical area
             if (rc.bottom > ctx->dockTop && rc.top < ctx->screenHeight) {
                 // Window horizontally intersects the dock area
                 if (rc.right > ctx->dockLeft && rc.left < ctx->dockRight) {
                     ctx->hasOverlap = true;
-                    return FALSE; // Found overlap!
+                    return FALSE; // Found real overlap! Stop enumeration
                 }
             }
         }
@@ -825,26 +854,30 @@ bool DockWindow::CheckOverlap() {
         return false;
     }
 
+    int screenWidth = GetSystemMetrics(SM_CXSCREEN);
     int screenHeight = GetSystemMetrics(SM_CYSCREEN);
     RECT workArea = {};
     SystemParametersInfoW(SPI_GETWORKAREA, 0, &workArea, 0);
     int baselineY = workArea.bottom;
-    int dockTop = baselineY - static_cast<int>(m_barVisualHeight + m_bottomMargin + 25.0f);
 
-    RECT dockRect;
-    GetWindowRect(m_hwnd, &dockRect);
+    // Visual dock top: Dock sits from (baselineY - m_barVisualHeight - m_bottomMargin) to (baselineY - m_bottomMargin).
+    // A window only overlaps if its bottom edge actually enters this visual area!
+    int dockVisualTop = baselineY - static_cast<int>(m_barVisualHeight + m_bottomMargin);
 
-    // Left and right bounds of the dock bar with 20px margin
-    int dockLeft = dockRect.left - 20;
-    int dockRight = dockRect.right + 20;
+    // Left and right bounds of the resting dock bar with 15px margin
+    int winW = static_cast<int>(m_barWidth);
+    int winX = (screenWidth - winW) / 2;
+    int dockLeft = winX - 15;
+    int dockRight = winX + winW + 15;
 
     OverlapContext ctx;
     ctx.dockHwnd = m_hwnd;
-    ctx.dockTop = dockTop;
+    ctx.dockTop = dockVisualTop;
     ctx.dockLeft = dockLeft;
     ctx.dockRight = dockRight;
     ctx.screenHeight = screenHeight;
     ctx.hasOverlap = false;
+    ctx.passedDesktopLayer = false;
 
     EnumWindows(EnumOverlapProc, reinterpret_cast<LPARAM>(&ctx));
 

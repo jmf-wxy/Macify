@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 echo ========================================================
-echo   Macify v0.0.3 Builder (Native C++ Desktop Suite)
+echo   Macify v0.0.4 Builder (Native C++ Desktop Suite)
 echo ========================================================
 
 :: If g++ is not in current session PATH, check D:\tools\w64devkit\bin
