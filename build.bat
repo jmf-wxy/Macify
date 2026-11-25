@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 echo ========================================================
-echo   Macify v0.0.5 Builder (Native C++ Desktop Suite)
+echo   Macify v0.0.6 Builder (Native C++ Desktop Suite)
 echo ========================================================
 
 :: If g++ is not in current session PATH, check D:\tools\w64devkit\bin
@@ -35,6 +35,7 @@ if %errorlevel% equ 0 (
     g++ -std=c++20 -O2 -mwindows -municode ^
         src/main.cpp ^
         src/core/D2DContext.cpp ^
+        src/core/InputBox.cpp ^
         src/dock/DockWindow.cpp ^
         src/drawer/AppScanner.cpp ^
         src/drawer/DrawerWindow.cpp ^

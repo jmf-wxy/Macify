@@ -6,6 +6,7 @@
 #include <vector>
 #include <algorithm>
 #include <d2d1.h>
+#include "../widgets/MemoWidget.h"
 
 namespace Settings {
 
@@ -135,7 +136,15 @@ struct AppConfig {
         widgetMemoX = defaultX;
         widgetMemoY = curY;
         widgetMemoW = 220.0f;
-        widgetMemoH = 120.0f;
+        widgetMemoH = 135.0f;
+
+        if (memoItems.empty()) {
+            memoItems = {
+                { L"保持专注，优雅从容", false },
+                { L"享受纯净美观的桌面空间", false },
+                { L"Macify 开源桌面套件", true }
+            };
+        }
     }
 
     // 1. 常规与系统 (General & System)
@@ -223,7 +232,8 @@ struct AppConfig {
     float widgetMemoX = 40.0f;
     float widgetMemoY = 585.0f;
     float widgetMemoW = 220.0f;
-    float widgetMemoH = 120.0f;
+    float widgetMemoH = 135.0f;
+    std::vector<Widgets::MemoItem> memoItems;
 
     bool widgetLockPosition = false;
     float widgetOpacity = 0.85f;
@@ -362,6 +372,11 @@ struct AppConfig {
         widgetSysMonEnabled = true;
         widgetCalendarEnabled = true;
         widgetMemoEnabled = false;
+        memoItems = {
+            { L"保持专注，优雅从容", false },
+            { L"享受纯净美观的桌面空间", false },
+            { L"Macify 开源桌面套件", true }
+        };
 
         widgetLockPosition = false;
         widgetOpacity = 0.85f;
@@ -647,6 +662,81 @@ struct AppConfig {
         widgetOpacity = parseFloat("widgetOpacity", widgetOpacity);
         widgetSizePreset = parseInt("widgetSizePreset", widgetSizePreset);
 
+        size_t memosPos = content.find("\"memos\"");
+        if (memosPos != std::string::npos) {
+            size_t openBracket = content.find('[', memosPos);
+            size_t closeBracket = content.find(']', openBracket);
+            if (openBracket != std::string::npos && closeBracket != std::string::npos) {
+                memoItems.clear();
+                std::string arrStr = content.substr(openBracket, closeBracket - openBracket + 1);
+                size_t p = 0;
+                while ((p = arrStr.find('{', p)) != std::string::npos) {
+                    size_t endObj = arrStr.find('}', p);
+                    if (endObj == std::string::npos) break;
+                    std::string obj = arrStr.substr(p, endObj - p + 1);
+
+                    auto extractVal = [&obj](const std::string& key) -> std::string {
+                        size_t kpos = obj.find("\"" + key + "\"");
+                        if (kpos == std::string::npos) return "";
+                        size_t col = obj.find(':', kpos);
+                        if (col == std::string::npos) return "";
+                        size_t q1 = obj.find('"', col);
+                        if (q1 == std::string::npos) return "";
+                        size_t q2 = obj.find('"', q1 + 1);
+                        if (q2 == std::string::npos) return "";
+                        return obj.substr(q1 + 1, q2 - q1 - 1);
+                    };
+
+                    auto extractBool = [&obj](const std::string& key, bool def) -> bool {
+                        size_t kpos = obj.find("\"" + key + "\"");
+                        if (kpos == std::string::npos) return def;
+                        size_t col = obj.find(':', kpos);
+                        if (col == std::string::npos) return def;
+                        size_t t = obj.find("true", col);
+                        size_t f = obj.find("false", col);
+                        if (t != std::string::npos && (f == std::string::npos || t < f)) return true;
+                        if (f != std::string::npos) return false;
+                        return def;
+                    };
+
+                    auto toWString = [](const std::string& s) -> std::wstring {
+                        std::string unescaped;
+                        for (size_t i = 0; i < s.length(); ++i) {
+                            if (s[i] == '\\' && i + 1 < s.length() && s[i+1] == '\\') {
+                                unescaped += '\\';
+                                ++i;
+                            } else {
+                                unescaped += s[i];
+                            }
+                        }
+                        int wlen = MultiByteToWideChar(CP_UTF8, 0, unescaped.c_str(), -1, nullptr, 0);
+                        if (wlen > 0) {
+                            std::wstring res(wlen, 0);
+                            MultiByteToWideChar(CP_UTF8, 0, unescaped.c_str(), -1, &res[0], wlen);
+                            if (!res.empty() && res.back() == L'\0') res.pop_back();
+                            return res;
+                        }
+                        return L"";
+                    };
+
+                    Widgets::MemoItem mi;
+                    mi.text = toWString(extractVal("text"));
+                    mi.done = extractBool("done", false);
+                    if (!mi.text.empty()) {
+                        memoItems.push_back(mi);
+                    }
+                    p = endObj + 1;
+                }
+            }
+        }
+        if (memoItems.empty()) {
+            memoItems = {
+                { L"保持专注，优雅从容", false },
+                { L"享受纯净美观的桌面空间", false },
+                { L"Macify 开源桌面套件", true }
+            };
+        }
+
         // 5. Appearance
         themePreset = parseInt("themePreset", themePreset);
         accentColor = parseInt("accentColor", accentColor);
@@ -808,6 +898,25 @@ struct AppConfig {
         ss << "    \"memoY\": " << widgetMemoY << ",\n";
         ss << "    \"memoW\": " << widgetMemoW << ",\n";
         ss << "    \"memoH\": " << widgetMemoH << ",\n";
+        ss << "    \"memos\": [\n";
+        for (size_t i = 0; i < memoItems.size(); ++i) {
+            int nlen = WideCharToMultiByte(CP_UTF8, 0, memoItems[i].text.c_str(), -1, nullptr, 0, nullptr, nullptr);
+            std::string u8Text(nlen > 1 ? nlen - 1 : 0, '\0');
+            if (nlen > 1) {
+                WideCharToMultiByte(CP_UTF8, 0, memoItems[i].text.c_str(), -1, &u8Text[0], nlen, nullptr, nullptr);
+            }
+            std::string escaped;
+            for (char c : u8Text) {
+                if (c == '\\') escaped += "\\\\";
+                else if (c == '"') escaped += "\\\"";
+                else escaped += c;
+            }
+            ss << "      {\n";
+            ss << "        \"text\": \"" << escaped << "\",\n";
+            ss << "        \"done\": " << (memoItems[i].done ? "true" : "false") << "\n";
+            ss << "      }" << (i + 1 < memoItems.size() ? "," : "") << "\n";
+        }
+        ss << "    ],\n";
         ss << "    \"lockPosition\": " << (widgetLockPosition ? "true" : "false") << ",\n";
         ss << "    \"widgetSizePreset\": " << widgetSizePreset << ",\n";
         ss << "    \"opacity\": " << widgetOpacity << "\n";

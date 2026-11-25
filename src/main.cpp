@@ -273,7 +273,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int) {
         widgetHost.AddWidget(std::make_unique<Widgets::DiskWidget>(cfg.widgetDiskX, cfg.widgetDiskY, cfg.widgetDiskW, cfg.widgetDiskH));
         widgetHost.AddWidget(std::make_unique<Widgets::SysMonitorWidget>(cfg.widgetSysMonX, cfg.widgetSysMonY, cfg.widgetSysMonW, cfg.widgetSysMonH));
         widgetHost.AddWidget(std::make_unique<Widgets::CalendarWidget>(cfg.widgetCalendarX, cfg.widgetCalendarY, cfg.widgetCalendarW, cfg.widgetCalendarH));
-        widgetHost.AddWidget(std::make_unique<Widgets::MemoWidget>(cfg.widgetMemoX, cfg.widgetMemoY, cfg.widgetMemoW, cfg.widgetMemoH));
+        auto memoWidget = std::make_unique<Widgets::MemoWidget>(cfg.widgetMemoX, cfg.widgetMemoY, cfg.widgetMemoW, cfg.widgetMemoH);
+        memoWidget->SetItems(cfg.memoItems);
+        memoWidget->SetOnChanged([&cfg, configPath, &settingsWindow](const std::vector<Widgets::MemoItem>& items) {
+            cfg.memoItems = items;
+            cfg.SaveToFile(configPath);
+            settingsWindow.SyncConfig(cfg);
+        });
+        widgetHost.AddWidget(std::move(memoWidget));
 
         widgetHost.SetOnBoundsChanged([&cfg, configPath](const std::wstring& id, float x, float y, float w, float h) {
             cfg.UpdateWidgetBounds(id, x, y, w, h);
@@ -303,6 +310,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int) {
                                     c.widgetSysMonX, c.widgetSysMonY, c.widgetSysMonW, c.widgetSysMonH,
                                     c.widgetCalendarX, c.widgetCalendarY, c.widgetCalendarW, c.widgetCalendarH,
                                     c.widgetMemoX, c.widgetMemoY, c.widgetMemoW, c.widgetMemoH);
+        if (auto* mw = dynamic_cast<Widgets::MemoWidget*>(widgetHost.FindWidget(L"widget_memo"))) {
+            mw->SetItems(c.memoItems);
+        }
     };
     scb.onAppearanceChanged = [&dock, &drawer, &widgetHost](const Settings::AppConfig& c) {
         auto p = Settings::GetThemePalette(c.themePreset, c.accentColor, c.dockBgOpacity, c.widgetOpacity);

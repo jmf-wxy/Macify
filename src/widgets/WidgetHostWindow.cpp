@@ -371,24 +371,65 @@ LRESULT WidgetHostWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) 
             m_activeWidget->SetSize(newW, newH);
             InvalidateRect(m_hwnd, nullptr, FALSE);
             return 0;
+        } else if (m_dragMode == DragMode::None) {
+            for (const auto& w : m_widgets) {
+                if (!w || !w->IsEnabled()) continue;
+                D2D1_RECT_F b = w->GetBounds();
+                if (pt.x >= b.left && pt.x <= b.right && pt.y >= b.top && pt.y <= b.bottom) {
+                    MouseEvent evt;
+                    evt.type = MouseEvent::Type::Move;
+                    evt.x = pt.x;
+                    evt.y = pt.y;
+                    w->OnMouseEvent(evt);
+                    InvalidateRect(m_hwnd, nullptr, FALSE);
+                }
+            }
         }
         break;
     }
 
     case WM_LBUTTONUP: {
+        POINT pt = { static_cast<short>(LOWORD(lParam)), static_cast<short>(HIWORD(lParam)) };
         if (GetCapture() == m_hwnd) {
             ReleaseCapture();
         }
-        if (m_dragMode != DragMode::None) {
+        bool wasDrag = (std::abs(pt.x - m_dragStartMouse.x) > 4 || std::abs(pt.y - m_dragStartMouse.y) > 4);
+        if (m_dragMode == DragMode::Move && !wasDrag && m_activeWidget) {
+            MouseEvent evt;
+            evt.type = MouseEvent::Type::LeftUp;
+            evt.x = pt.x;
+            evt.y = pt.y;
+            m_activeWidget->OnMouseEvent(evt);
+            InvalidateRect(m_hwnd, nullptr, FALSE);
+        } else if (m_dragMode != DragMode::None) {
             if (m_onBoundsChanged && m_activeWidget) {
                 D2D1_RECT_F b = m_activeWidget->GetBounds();
                 m_onBoundsChanged(m_activeWidget->GetId(), b.left, b.top, b.right - b.left, b.bottom - b.top);
             }
-            m_dragMode = DragMode::None;
-            m_activeWidget = nullptr;
         }
+        m_dragMode = DragMode::None;
+        m_activeWidget = nullptr;
         SetWindowPos(m_hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         return 0;
+    }
+
+    case WM_RBUTTONUP: {
+        POINT pt = { static_cast<short>(LOWORD(lParam)), static_cast<short>(HIWORD(lParam)) };
+        for (auto it = m_widgets.rbegin(); it != m_widgets.rend(); ++it) {
+            auto& w = *it;
+            if (!w || !w->IsEnabled()) continue;
+            D2D1_RECT_F b = w->GetBounds();
+            if (pt.x >= b.left && pt.x <= b.right && pt.y >= b.top && pt.y <= b.bottom) {
+                MouseEvent evt;
+                evt.type = MouseEvent::Type::RightClick;
+                evt.x = pt.x;
+                evt.y = pt.y;
+                w->OnMouseEvent(evt);
+                InvalidateRect(m_hwnd, nullptr, FALSE);
+                return 0;
+            }
+        }
+        break;
     }
 
     case WM_ERASEBKGND:

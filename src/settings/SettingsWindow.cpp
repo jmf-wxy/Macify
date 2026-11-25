@@ -1,6 +1,7 @@
 #include "SettingsWindow.h"
 #include "../core/Backdrop.h"
 #include "../core/Version.h"
+#include "../core/InputBox.h"
 #include <algorithm>
 #include <cmath>
 
@@ -19,8 +20,8 @@ static std::wstring GetExecutableDir() {
 
 SettingsWindow::SettingsWindow()
     : m_hwnd(nullptr)
-    , m_winWidth(860.0f)
-    , m_winHeight(680.0f)
+    , m_winWidth(920.0f)
+    , m_winHeight(720.0f)
     , m_activeTab(0)
     , m_hoveredTab(-1)
     , m_activeSlider(-1)
@@ -129,11 +130,13 @@ bool SettingsWindow::Create() {
 
         dwrite->CreateTextFormat(L"Segoe UI", nullptr, DWRITE_FONT_WEIGHT_SEMI_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 13.5f, L"zh-CN", &m_pFormatItemTitle);
         if (m_pFormatItemTitle) {
+            m_pFormatItemTitle->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
             m_pFormatItemTitle->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
         }
 
         dwrite->CreateTextFormat(L"Segoe UI", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 11.5f, L"zh-CN", &m_pFormatItemDesc);
         if (m_pFormatItemDesc) {
+            m_pFormatItemDesc->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
             m_pFormatItemDesc->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
         }
 
@@ -466,13 +469,13 @@ void SettingsWindow::DrawDrawerTab(ID2D1RenderTarget* rt, float contentX, float 
 }
 
 void SettingsWindow::DrawWidgetsTab(ID2D1RenderTarget* rt, float contentX, float contentY) {
-    rt->DrawTextW(L"桌面毛玻璃小组件", 8, m_pFormatTitle, D2D1::RectF(contentX, contentY, contentX + 400.0f, contentY + 30.0f), m_pBrushTextTitle);
-    rt->DrawTextW(L"时钟、磁盘、性能监控、日历与便签挂件自由布局与拖拽缩放", 29, m_pFormatSubtitle, D2D1::RectF(contentX, contentY + 26.0f, contentX + 500.0f, contentY + 46.0f), m_pBrushTextDesc);
+    rt->DrawTextW(L"桌面毛玻璃小组件", 8, m_pFormatTitle, D2D1::RectF(contentX, contentY, contentX + 400.0f, contentY + 28.0f), m_pBrushTextTitle);
+    rt->DrawTextW(L"时钟、磁盘、性能监控、日历与便签挂件自由布局与拖拽缩放", 29, m_pFormatSubtitle, D2D1::RectF(contentX, contentY + 26.0f, contentX + 550.0f, contentY + 46.0f), m_pBrushTextDesc);
 
-    float cardY = contentY + 50.0f;
-    float cardW = 574.0f;
-    float cardH = 44.0f;
-    float gap = 7.0f;
+    float cardY = contentY + 48.0f;
+    float cardW = 640.0f;
+    float cardH = 46.0f;
+    float gap = 6.0f;
 
     // 1. Clock
     DrawToggleRow(rt, contentX, cardY, cardW, cardH, L"启用数字时钟挂件", L"在桌面上显示优雅时钟与公历日期", m_config.widgetClockEnabled, 11);
@@ -485,7 +488,7 @@ void SettingsWindow::DrawWidgetsTab(ID2D1RenderTarget* rt, float contentX, float
     DrawToggleRow(rt, contentX, cardY, cardW, cardH, L"启用磁盘容量监控组件", L"实时统计系统盘与各硬盘驱动器剩余容量", m_config.widgetDiskEnabled, 15);
     cardY += cardH + gap;
 
-    DrawSliderRow(rt, contentX, cardY, cardW, cardH, L"磁盘刷新轮询周期", L"读取硬盘驱动器剩余容量的时间间隔（极致节能）", static_cast<float>(m_config.widgetDiskRefreshMin), 10.0f, 30.0f, L"分钟", 7);
+    DrawSliderRow(rt, contentX, cardY, cardW, cardH, L"磁盘刷新轮询周期", L"定时读取各驱动器剩余容量的时间间隔 (极低功耗)", static_cast<float>(m_config.widgetDiskRefreshMin), 10.0f, 30.0f, L"分钟", 7);
     cardY += cardH + gap;
 
     // 3. SysMon
@@ -497,7 +500,7 @@ void SettingsWindow::DrawWidgetsTab(ID2D1RenderTarget* rt, float contentX, float
     cardY += cardH + gap;
 
     // 5. Memo
-    DrawToggleRow(rt, contentX, cardY, cardW, cardH, L"启用桌面灵感便签组件", L"在桌面上记录待办备忘与灵感清单", m_config.widgetMemoEnabled, 19);
+    DrawToggleRow(rt, contentX, cardY, cardW, cardH, L"启用桌面灵感便签组件", L"在桌面上记录待办备忘与灵感清单 (支持桌面勾选与交互)", m_config.widgetMemoEnabled, 19);
     cardY += cardH + gap;
 
     // 6. Lock
@@ -510,11 +513,13 @@ void SettingsWindow::DrawWidgetsTab(ID2D1RenderTarget* rt, float contentX, float
 
     // 8. Widget standard size presets
     std::vector<std::wstring> sizeOptions = { L"紧凑 200px", L"标准 220px", L"宽屏 260px", L"超大 300px" };
-    DrawSegmentedRow(rt, contentX, cardY, cardW, cardH, L"组件标准规范尺寸", L"一键将所有桌面组件统一设置为规范宽度并靠右对齐", sizeOptions, m_config.widgetSizePreset, 4);
+    DrawSegmentedRow(rt, contentX, cardY, cardW, cardH, L"组件标准规范尺寸", L"一键将所有桌面组件统一设置为规范宽度", sizeOptions, m_config.widgetSizePreset, 4);
     cardY += cardH + gap + 4.0f;
 
-    // 9. Reset widgets button
-    DrawButton(rt, contentX, cardY, 280.0f, 36.0f, L"↺ 恢复全部组件默认尺寸与右上排布", false, 7);
+    // 9. Action buttons
+    DrawButton(rt, contentX, cardY, 260.0f, 36.0f, L"↺ 恢复默认尺寸与排布", false, 7);
+    DrawButton(rt, contentX + 274.0f, cardY, 180.0f, 36.0f, L"➕ 添加新备忘待办...", true, 8);
+    DrawButton(rt, contentX + 468.0f, cardY, 172.0f, 36.0f, L"🧹 清除已完成备忘", false, 9);
 }
 
 void SettingsWindow::DrawAppearanceTab(ID2D1RenderTarget* rt, float contentX, float contentY) {
@@ -579,20 +584,21 @@ void SettingsWindow::DrawToggleRow(ID2D1RenderTarget* rt, float x, float y, floa
     rt->FillRoundedRectangle(card, m_pBrushCardBg);
     rt->DrawRoundedRectangle(card, m_pBrushBorder, 0.8f);
 
-    // Left text (strictly vertically centered relative to card height)
-    float textTop = y + (h - 32.0f) / 2.0f;
-    if (m_pFormatItemTitle) {
-        rt->DrawTextW(title, static_cast<UINT32>(wcslen(title)), m_pFormatItemTitle, D2D1::RectF(x + 16.0f, textTop, x + w - 75.0f, textTop + 17.0f), m_pBrushTextTitle);
-    }
-    if (m_pFormatItemDesc) {
-        rt->DrawTextW(desc, static_cast<UINT32>(wcslen(desc)), m_pFormatItemDesc, D2D1::RectF(x + 16.0f, textTop + 17.0f, x + w - 75.0f, textTop + 32.0f), m_pBrushTextDesc);
-    }
-
     // Right capsule switch (vertically centered)
     float switchW = 46.0f;
     float switchH = 24.0f;
     float switchX = x + w - switchW - 16.0f;
     float switchY = y + (h - switchH) / 2.0f;
+    float textMaxX = switchX - 14.0f;
+
+    // Left text (strictly vertically centered relative to card height)
+    float textTop = y + (h - 34.0f) / 2.0f;
+    if (m_pFormatItemTitle) {
+        rt->DrawTextW(title, static_cast<UINT32>(wcslen(title)), m_pFormatItemTitle, D2D1::RectF(x + 16.0f, textTop, textMaxX, textTop + 17.0f), m_pBrushTextTitle);
+    }
+    if (m_pFormatItemDesc) {
+        rt->DrawTextW(desc, static_cast<UINT32>(wcslen(desc)), m_pFormatItemDesc, D2D1::RectF(x + 16.0f, textTop + 18.0f, textMaxX, textTop + 34.0f), m_pBrushTextDesc);
+    }
 
     D2D1_ROUNDED_RECT pill = D2D1::RoundedRect(D2D1::RectF(switchX, switchY, switchX + switchW, switchY + switchH), 12.0f, 12.0f);
     if (state) {
@@ -615,19 +621,20 @@ void SettingsWindow::DrawSliderRow(ID2D1RenderTarget* rt, float x, float y, floa
     rt->FillRoundedRectangle(card, m_pBrushCardBg);
     rt->DrawRoundedRectangle(card, m_pBrushBorder, 0.8f);
 
-    // Left text (strictly vertically centered)
-    float textTop = y + (h - 32.0f) / 2.0f;
-    if (m_pFormatItemTitle) {
-        rt->DrawTextW(title, static_cast<UINT32>(wcslen(title)), m_pFormatItemTitle, D2D1::RectF(x + 16.0f, textTop, x + 240.0f, textTop + 17.0f), m_pBrushTextTitle);
-    }
-    if (m_pFormatItemDesc) {
-        rt->DrawTextW(desc, static_cast<UINT32>(wcslen(desc)), m_pFormatItemDesc, D2D1::RectF(x + 16.0f, textTop + 17.0f, x + 240.0f, textTop + 32.0f), m_pBrushTextDesc);
-    }
-
     // Slider track
     float trackX = x + w - 265.0f;
     float trackW = 175.0f;
     float trackY = y + h / 2.0f;
+    float textMaxX = trackX - 16.0f;
+
+    // Left text (strictly vertically centered)
+    float textTop = y + (h - 34.0f) / 2.0f;
+    if (m_pFormatItemTitle) {
+        rt->DrawTextW(title, static_cast<UINT32>(wcslen(title)), m_pFormatItemTitle, D2D1::RectF(x + 16.0f, textTop, textMaxX, textTop + 17.0f), m_pBrushTextTitle);
+    }
+    if (m_pFormatItemDesc) {
+        rt->DrawTextW(desc, static_cast<UINT32>(wcslen(desc)), m_pFormatItemDesc, D2D1::RectF(x + 16.0f, textTop + 18.0f, textMaxX, textTop + 34.0f), m_pBrushTextDesc);
+    }
     float clampedVal = (value < minVal) ? minVal : ((value > maxVal) ? maxVal : value);
     float ratio = (clampedVal - minVal) / (maxVal - minVal);
 
@@ -655,20 +662,21 @@ void SettingsWindow::DrawSegmentedRow(ID2D1RenderTarget* rt, float x, float y, f
     rt->FillRoundedRectangle(card, m_pBrushCardBg);
     rt->DrawRoundedRectangle(card, m_pBrushBorder, 0.8f);
 
-    // Left text (vertically centered)
-    float textTop = y + (h - 32.0f) / 2.0f;
-    if (m_pFormatItemTitle) {
-        rt->DrawTextW(title, static_cast<UINT32>(wcslen(title)), m_pFormatItemTitle, D2D1::RectF(x + 16.0f, textTop, x + 240.0f, textTop + 17.0f), m_pBrushTextTitle);
-    }
-    if (m_pFormatItemDesc) {
-        rt->DrawTextW(desc, static_cast<UINT32>(wcslen(desc)), m_pFormatItemDesc, D2D1::RectF(x + 16.0f, textTop + 17.0f, x + 240.0f, textTop + 32.0f), m_pBrushTextDesc);
-    }
-
     // Segmented capsule
     float segW = 240.0f;
     float segH = 28.0f;
     float segX = x + w - segW - 16.0f;
     float segY = y + (h - segH) / 2.0f;
+    float textMaxX = segX - 16.0f;
+
+    // Left text (vertically centered)
+    float textTop = y + (h - 34.0f) / 2.0f;
+    if (m_pFormatItemTitle) {
+        rt->DrawTextW(title, static_cast<UINT32>(wcslen(title)), m_pFormatItemTitle, D2D1::RectF(x + 16.0f, textTop, textMaxX, textTop + 17.0f), m_pBrushTextTitle);
+    }
+    if (m_pFormatItemDesc) {
+        rt->DrawTextW(desc, static_cast<UINT32>(wcslen(desc)), m_pFormatItemDesc, D2D1::RectF(x + 16.0f, textTop + 18.0f, textMaxX, textTop + 34.0f), m_pBrushTextDesc);
+    }
 
     D2D1_ROUNDED_RECT pill = D2D1::RoundedRect(D2D1::RectF(segX, segY, segX + segW, segY + segH), 6.0f, 6.0f);
     rt->FillRoundedRectangle(pill, m_pBrushToggleOff);
@@ -830,11 +838,12 @@ void SettingsWindow::OnLButtonDown(int x, int y) {
             }
         }
     } else if (m_activeTab == 3) { // Widgets Tab
-        float cardY = 28.0f + 50.0f;
-        float cardH = 44.0f;
-        float gap = 7.0f;
+        float cardY = 30.0f + 48.0f;
+        float cardW = 640.0f;
+        float cardH = 46.0f;
+        float gap = 6.0f;
         float switchX = contentX + cardW - 46.0f - 16.0f;
-        float trackX = contentX + cardW - 260.0f;
+        float trackX = contentX + cardW - 265.0f;
 
         // Helper lambda to check toggle click
         auto checkToggle = [&](int tid) -> bool {
@@ -892,9 +901,20 @@ void SettingsWindow::OnLButtonDown(int x, int y) {
         }
         cardY += cardH + gap + 4.0f;
 
-        // Row 11: Button 7 (Reset)
-        if (x >= contentX && x <= contentX + 280.0f && y >= cardY && y <= cardY + 36.0f) {
+        // Row 11: Action buttons
+        // Button 7: Reset layout
+        if (x >= contentX && x <= contentX + 260.0f && y >= cardY && y <= cardY + 36.0f) {
             HandleButtonClick(7);
+            return;
+        }
+        // Button 8: Add memo
+        if (x >= contentX + 274.0f && x <= contentX + 274.0f + 180.0f && y >= cardY && y <= cardY + 36.0f) {
+            HandleButtonClick(8);
+            return;
+        }
+        // Button 9: Clear done memos
+        if (x >= contentX + 468.0f && x <= contentX + 468.0f + 172.0f && y >= cardY && y <= cardY + 36.0f) {
+            HandleButtonClick(9);
             return;
         }
     } else if (m_activeTab == 4) { // Appearance Tab
@@ -1140,6 +1160,23 @@ void SettingsWindow::HandleButtonClick(int buttonId) {
         SaveAndApply();
         InvalidateRect(m_hwnd, nullptr, FALSE);
         MessageBoxW(m_hwnd, L"已恢复全部小组件的默认尺寸、并靠齐右上角 10px 紧凑排布！", L"组件排布重置", MB_OK | MB_ICONINFORMATION);
+    } else if (buttonId == 8) { // Add memo
+        std::wstring text;
+        if (Core::ShowInputBox(m_hwnd, L"新建待办备忘", L"请输入新的备忘内容：", text) && !text.empty()) {
+            Widgets::MemoItem item;
+            item.text = text;
+            item.done = false;
+            m_config.memoItems.push_back(item);
+            SaveAndApply();
+            InvalidateRect(m_hwnd, nullptr, FALSE);
+        }
+    } else if (buttonId == 9) { // Clear done memos
+        m_config.memoItems.erase(
+            std::remove_if(m_config.memoItems.begin(), m_config.memoItems.end(), [](const Widgets::MemoItem& it) { return it.done; }),
+            m_config.memoItems.end()
+        );
+        SaveAndApply();
+        InvalidateRect(m_hwnd, nullptr, FALSE);
     }
 }
 
