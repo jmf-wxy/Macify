@@ -20,7 +20,7 @@ static std::wstring GetExecutableDir() {
 SettingsWindow::SettingsWindow()
     : m_hwnd(nullptr)
     , m_winWidth(860.0f)
-    , m_winHeight(600.0f)
+    , m_winHeight(680.0f)
     , m_activeTab(0)
     , m_hoveredTab(-1)
     , m_activeSlider(-1)
@@ -506,6 +506,15 @@ void SettingsWindow::DrawWidgetsTab(ID2D1RenderTarget* rt, float contentX, float
 
     // 7. Opacity
     DrawSliderRow(rt, contentX, cardY, cardW, cardH, L"小组件半透明度", L"组件亚克力半透明磨砂卡片的透明强度", m_config.widgetOpacity * 100.0f, 30.0f, 100.0f, L"%", 8);
+    cardY += cardH + gap;
+
+    // 8. Widget standard size presets
+    std::vector<std::wstring> sizeOptions = { L"紧凑 200px", L"标准 220px", L"宽屏 260px", L"超大 300px" };
+    DrawSegmentedRow(rt, contentX, cardY, cardW, cardH, L"组件标准规范尺寸", L"一键将所有桌面组件统一设置为规范宽度并靠右对齐", sizeOptions, m_config.widgetSizePreset, 4);
+    cardY += cardH + gap + 4.0f;
+
+    // 9. Reset widgets button
+    DrawButton(rt, contentX, cardY, 280.0f, 36.0f, L"↺ 恢复全部组件默认尺寸与右上排布", false, 7);
 }
 
 void SettingsWindow::DrawAppearanceTab(ID2D1RenderTarget* rt, float contentX, float contentY) {
@@ -871,6 +880,23 @@ void SettingsWindow::OnLButtonDown(int x, int y) {
             HandleSliderDrag(8, ratio);
             return;
         }
+        cardY += cardH + gap;
+
+        // Row 10: Standard size segmented row (segId = 4)
+        float segX = contentX + cardW - 240.0f - 16.0f;
+        float segW = 240.0f;
+        if (x >= segX && x <= segX + segW && y >= cardY && y <= cardY + cardH) {
+            int opt = static_cast<int>((x - segX) / (segW / 4.0f));
+            HandleSegmentClick(4, opt);
+            return;
+        }
+        cardY += cardH + gap + 4.0f;
+
+        // Row 11: Button 7 (Reset)
+        if (x >= contentX && x <= contentX + 280.0f && y >= cardY && y <= cardY + 36.0f) {
+            HandleButtonClick(7);
+            return;
+        }
     } else if (m_activeTab == 4) { // Appearance Tab
         float cardY = 28.0f + 54.0f;
         float cardH = 58.0f;
@@ -1068,6 +1094,8 @@ void SettingsWindow::HandleSegmentClick(int segId, int optionIdx) {
         m_config.accentColor = optionIdx;
         ApplyTheme();
         if (m_callbacks.onAppearanceChanged) m_callbacks.onAppearanceChanged(m_config);
+    } else if (segId == 4) { // Widget size preset
+        m_config.ApplyWidgetSizePreset(optionIdx);
     }
 
     SaveAndApply();
@@ -1107,6 +1135,11 @@ void SettingsWindow::HandleButtonClick(int buttonId) {
             InvalidateRect(m_hwnd, nullptr, FALSE);
             MessageBoxW(m_hwnd, L"已恢复所有已删除的应用图标！", L"恢复成功", MB_OK | MB_ICONINFORMATION);
         }
+    } else if (buttonId == 7) { // Reset widgets to default size and top-right layout
+        m_config.ResetWidgetLayout();
+        SaveAndApply();
+        InvalidateRect(m_hwnd, nullptr, FALSE);
+        MessageBoxW(m_hwnd, L"已恢复全部小组件的默认尺寸、并靠齐右上角 10px 紧凑排布！", L"组件排布重置", MB_OK | MB_ICONINFORMATION);
     }
 }
 

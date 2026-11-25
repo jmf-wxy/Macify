@@ -15,7 +15,7 @@ struct DiskInfo {
 
 class DiskWidget : public IWidget {
 public:
-    DiskWidget(float x = 40.0f, float y = 145.0f, float width = 220.0f, float height = 115.0f);
+    DiskWidget(float x = 40.0f, float y = 145.0f, float width = 220.0f, float height = 156.0f);
     ~DiskWidget() override;
 
     std::wstring GetId() const override { return L"widget_disk"; }

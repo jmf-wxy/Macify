@@ -9,7 +9,7 @@ DiskWidget::DiskWidget(float x, float y, float width, float height)
     , m_width(width)
     , m_height(height)
     , m_baseWidth(220.0f)
-    , m_baseHeight(115.0f)
+    , m_baseHeight(156.0f)
     , m_minWidth(140.0f)
     , m_minHeight(75.0f)
     , m_enabled(true)
@@ -117,9 +117,19 @@ void DiskWidget::RefreshDisks() {
         }
     }
 
-    // Limit to at most first 2 or 3 primary drives to keep compact layout
-    if (m_disks.size() > 3) {
-        m_disks.resize(3);
+    // Support all drives (C, D, E, F, etc.) with up to 8 drives max
+    if (m_disks.size() > 8) {
+        m_disks.resize(8);
+    }
+
+    // Dynamic baseHeight: 12px top/bottom padding + 36px per drive
+    m_baseHeight = 12.0f + static_cast<float>(m_disks.size()) * 36.0f;
+    if (m_baseHeight < 75.0f) m_baseHeight = 75.0f;
+    m_minHeight = 12.0f + static_cast<float>(m_disks.size()) * 20.0f;
+
+    // If m_height was around the old 3-disk default (<= 125px) and we have 4+ drives, adapt height
+    if (m_height <= 125.0f && m_disks.size() >= 4) {
+        m_height = m_baseHeight;
     }
 }
 

@@ -298,6 +298,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int) {
                                  c.widgetDiskEnabled, static_cast<float>(c.widgetDiskRefreshMin * 60.0f),
                                  c.widgetSysMonEnabled, c.widgetCalendarEnabled, c.widgetMemoEnabled,
                                  c.widgetLockPosition);
+        widgetHost.SyncWidgetBounds(c.widgetClockX, c.widgetClockY, c.widgetClockW, c.widgetClockH,
+                                    c.widgetDiskX, c.widgetDiskY, c.widgetDiskW, c.widgetDiskH,
+                                    c.widgetSysMonX, c.widgetSysMonY, c.widgetSysMonW, c.widgetSysMonH,
+                                    c.widgetCalendarX, c.widgetCalendarY, c.widgetCalendarW, c.widgetCalendarH,
+                                    c.widgetMemoX, c.widgetMemoY, c.widgetMemoW, c.widgetMemoH);
     };
     scb.onAppearanceChanged = [&dock, &drawer, &widgetHost](const Settings::AppConfig& c) {
         auto p = Settings::GetThemePalette(c.themePreset, c.accentColor, c.dockBgOpacity, c.widgetOpacity);

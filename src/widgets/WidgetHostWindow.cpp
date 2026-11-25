@@ -365,8 +365,9 @@ LRESULT WidgetHostWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) 
         } else if (m_dragMode == DragMode::Resize && m_activeWidget) {
             float dx = static_cast<float>(pt.x - m_dragStartMouse.x);
             float dy = static_cast<float>(pt.y - m_dragStartMouse.y);
-            float newW = (std::max)(m_activeWidget->GetMinSize().width, m_dragStartWidgetW + dx);
-            float newH = (std::max)(m_activeWidget->GetMinSize().height, m_dragStartWidgetH + dy);
+            float newW = m_dragStartWidgetW + dx;
+            float newH = m_dragStartWidgetH + dy;
+            ApplyResizeSnapping(m_activeWidget, newW, newH);
             m_activeWidget->SetSize(newW, newH);
             InvalidateRect(m_hwnd, nullptr, FALSE);
             return 0;
@@ -518,6 +519,131 @@ void WidgetHostWindow::ApplyMagneticSnapping(IWidget* activeWidget, float& x, fl
 
     if (snappedX) x = snapX;
     if (snappedY) y = snapY;
+}
+
+void WidgetHostWindow::ApplyResizeSnapping(IWidget* activeWidget, float& w, float& h) {
+    if (!activeWidget) return;
+
+    constexpr float SNAP_DIST = 14.0f;
+
+    D2D1_RECT_F ab = activeWidget->GetBounds();
+    float curX = ab.left;
+    float curY = ab.top;
+    float minW = activeWidget->GetMinSize().width;
+    float minH = activeWidget->GetMinSize().height;
+
+    float bestDiffW = SNAP_DIST + 1.0f;
+    float snapW = w;
+    bool snappedW = false;
+
+    float bestDiffH = SNAP_DIST + 1.0f;
+    float snapH = h;
+    bool snappedH = false;
+
+    // 1. Snap to other enabled widgets (match width, match height, right align, bottom align)
+    for (const auto& other : m_widgets) {
+        if (!other || other.get() == activeWidget || !other->IsEnabled()) continue;
+
+        D2D1_RECT_F ob = other->GetBounds();
+        float otherW = ob.right - ob.left;
+        float otherH = ob.bottom - ob.top;
+
+        // a) Match width of other widget
+        float diffW = std::abs(w - otherW);
+        if (diffW <= SNAP_DIST && diffW < bestDiffW) {
+            bestDiffW = diffW;
+            snapW = otherW;
+            snappedW = true;
+        }
+
+        // b) Align right edge with other widget
+        float alignRightW = ob.right - curX;
+        if (alignRightW >= minW) {
+            float diffAlignR = std::abs((curX + w) - ob.right);
+            if (diffAlignR <= SNAP_DIST && diffAlignR < bestDiffW) {
+                bestDiffW = diffAlignR;
+                snapW = alignRightW;
+                snappedW = true;
+            }
+        }
+
+        // c) Match height of other widget
+        float diffH = std::abs(h - otherH);
+        if (diffH <= SNAP_DIST && diffH < bestDiffH) {
+            bestDiffH = diffH;
+            snapH = otherH;
+            snappedH = true;
+        }
+
+        // d) Align bottom edge with other widget
+        float alignBottomH = ob.bottom - curY;
+        if (alignBottomH >= minH) {
+            float diffAlignB = std::abs((curY + h) - ob.bottom);
+            if (diffAlignB <= SNAP_DIST && diffAlignB < bestDiffH) {
+                bestDiffH = diffAlignB;
+                snapH = alignBottomH;
+                snappedH = true;
+            }
+        }
+
+        // e) Snap bottom edge to widget below it (with 10px gap)
+        if (ob.top > curY) {
+            float gapBottomH = ob.top - curY - 10.0f;
+            if (gapBottomH >= minH) {
+                float diffGap = std::abs((curY + h) - (ob.top - 10.0f));
+                if (diffGap <= SNAP_DIST && diffGap < bestDiffH) {
+                    bestDiffH = diffGap;
+                    snapH = gapBottomH;
+                    snappedH = true;
+                }
+            }
+        }
+    }
+
+    // 2. Snap to standard width presets (200, 220, 260, 300)
+    const float presetWidths[] = { 200.0f, 220.0f, 260.0f, 300.0f };
+    for (float presetW : presetWidths) {
+        float diffPreset = std::abs(w - presetW);
+        if (diffPreset <= SNAP_DIST && diffPreset < bestDiffW) {
+            bestDiffW = diffPreset;
+            snapW = presetW;
+            snappedW = true;
+        }
+    }
+
+    // 3. Snap right edge to screen margin (right - 25px)
+    int screenW = GetSystemMetrics(SM_CXSCREEN);
+    if (screenW <= 0) screenW = 1920;
+    float screenRightMargin = static_cast<float>(screenW) - 25.0f;
+    float toScreenMarginW = screenRightMargin - curX;
+    if (toScreenMarginW >= minW) {
+        float diffMargin = std::abs((curX + w) - screenRightMargin);
+        if (diffMargin <= SNAP_DIST && diffMargin < bestDiffW) {
+            bestDiffW = diffMargin;
+            snapW = toScreenMarginW;
+            snappedW = true;
+        }
+    }
+
+    if (snappedW) w = snapW;
+    if (snappedH) h = snapH;
+
+    // Clamp to min size
+    w = (std::max)(minW, w);
+    h = (std::max)(minH, h);
+}
+
+void WidgetHostWindow::SyncWidgetBounds(float clockX, float clockY, float clockW, float clockH,
+                                        float diskX, float diskY, float diskW, float diskH,
+                                        float sysX, float sysY, float sysW, float sysH,
+                                        float calX, float calY, float calW, float calH,
+                                        float memoX, float memoY, float memoW, float memoH) {
+    if (auto* w = FindWidget(L"widget_clock")) { w->SetPosition(clockX, clockY); w->SetSize(clockW, clockH); }
+    if (auto* w = FindWidget(L"widget_disk")) { w->SetPosition(diskX, diskY); w->SetSize(diskW, diskH); }
+    if (auto* w = FindWidget(L"widget_sysmon")) { w->SetPosition(sysX, sysY); w->SetSize(sysW, sysH); }
+    if (auto* w = FindWidget(L"widget_calendar")) { w->SetPosition(calX, calY); w->SetSize(calW, calH); }
+    if (auto* w = FindWidget(L"widget_memo")) { w->SetPosition(memoX, memoY); w->SetSize(memoW, memoH); }
+    InvalidateRect(m_hwnd, nullptr, FALSE);
 }
 
 } // namespace Widgets

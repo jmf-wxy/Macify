@@ -117,7 +117,7 @@ struct AppConfig {
         widgetDiskX = defaultX;
         widgetDiskY = curY;
         widgetDiskW = 220.0f;
-        widgetDiskH = 115.0f;
+        widgetDiskH = 156.0f; // Standard default accommodates 4 disks cleanly
         curY += widgetDiskH + 10.0f;
 
         widgetSysMonX = defaultX;
@@ -242,6 +242,34 @@ struct AppConfig {
         }
     }
 
+    int widgetSizePreset = 1; // 0: 200px (紧凑), 1: 220px (标准), 2: 260px (宽屏), 3: 300px (超大)
+
+    void ApplyWidgetSizePreset(int preset) {
+        widgetSizePreset = std::clamp(preset, 0, 3);
+        float targetW = 220.0f;
+        switch (widgetSizePreset) {
+            case 0: targetW = 200.0f; break;
+            case 1: targetW = 220.0f; break;
+            case 2: targetW = 260.0f; break;
+            case 3: targetW = 300.0f; break;
+        }
+
+        int screenW = GetSystemMetrics(SM_CXSCREEN);
+        if (screenW <= 0) screenW = 1920;
+        float newX = static_cast<float>(screenW) - targetW - 25.0f;
+
+        widgetClockX = newX; widgetClockW = targetW;
+        widgetDiskX = newX; widgetDiskW = targetW;
+        widgetSysMonX = newX; widgetSysMonW = targetW;
+        widgetCalendarX = newX; widgetCalendarW = targetW;
+        widgetMemoX = newX; widgetMemoW = targetW;
+    }
+
+    void ResetWidgetLayout() {
+        widgetSizePreset = 1;
+        InitWidgetDefaults();
+    }
+
     // 5. 个性化主题与外观 (Themes & Appearance)
     int themePreset = 0; // 0: 深邃夜空黑, 1: 太空灰, 2: 纯净磨砂水晶, 3: 极光幻紫
     int accentColor = 0; // 0: Mac经典蓝 (#0A84FF), 1: 翡翠绿 (#30D158), 2: 霓虹紫 (#BF5AF2), 3: 珊瑚红 (#FF453A)
@@ -337,6 +365,7 @@ struct AppConfig {
 
         widgetLockPosition = false;
         widgetOpacity = 0.85f;
+        widgetSizePreset = 1;
 
         themePreset = 0;
         accentColor = 0;
@@ -616,6 +645,7 @@ struct AppConfig {
 
         widgetLockPosition = parseBool("widgetLockPosition", widgetLockPosition);
         widgetOpacity = parseFloat("widgetOpacity", widgetOpacity);
+        widgetSizePreset = parseInt("widgetSizePreset", widgetSizePreset);
 
         // 5. Appearance
         themePreset = parseInt("themePreset", themePreset);
@@ -779,6 +809,7 @@ struct AppConfig {
         ss << "    \"memoW\": " << widgetMemoW << ",\n";
         ss << "    \"memoH\": " << widgetMemoH << ",\n";
         ss << "    \"lockPosition\": " << (widgetLockPosition ? "true" : "false") << ",\n";
+        ss << "    \"widgetSizePreset\": " << widgetSizePreset << ",\n";
         ss << "    \"opacity\": " << widgetOpacity << "\n";
         ss << "  },\n";
 

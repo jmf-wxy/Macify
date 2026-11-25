@@ -30,6 +30,11 @@ public:
                        bool diskEnabled, float diskInterval,
                        bool sysMonEnabled, bool calendarEnabled, bool memoEnabled,
                        bool lockPosition);
+    void SyncWidgetBounds(float clockX, float clockY, float clockW, float clockH,
+                          float diskX, float diskY, float diskW, float diskH,
+                          float sysX, float sysY, float sysW, float sysH,
+                          float calX, float calY, float calW, float calH,
+                          float memoX, float memoY, float memoW, float memoH);
     void ApplyTheme(D2D1_COLOR_F bg, D2D1_COLOR_F border, D2D1_COLOR_F accent);
     void SetOnBoundsChanged(OnBoundsChangedCallback cb) { m_onBoundsChanged = cb; }
 
@@ -40,6 +45,7 @@ private:
     void Render();
     void OnTimer();
     void ApplyMagneticSnapping(IWidget* activeWidget, float& x, float& y, float w, float h);
+    void ApplyResizeSnapping(IWidget* activeWidget, float& w, float& h);
 
 private:
     HWND m_hwnd;
