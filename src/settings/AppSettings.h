@@ -375,7 +375,8 @@ struct AppConfig {
             { L"启动台", L"", L"launchpad", L"launchpad" },
             { L"资源管理器", L"C:\\Windows\\explorer.exe", L"launch", L"" },
             { L"回收站", L"shell:RecycleBinFolder", L"recyclebin", L"" },
-            { L"设置", L"", L"settings", L"settings" }
+            { L"设置", L"", L"settings", L"settings" },
+            { L"关机", L"", L"power", L"power" }
         };
 
         drawerColumns = 7;
@@ -544,7 +545,8 @@ struct AppConfig {
                 { L"启动台", L"", L"launchpad", L"launchpad" },
                 { L"资源管理器", L"C:\\Windows\\explorer.exe", L"launch", L"" },
                 { L"回收站", L"shell:RecycleBinFolder", L"recyclebin", L"" },
-                { L"设置", L"", L"settings", L"settings" }
+                { L"设置", L"", L"settings", L"settings" },
+                { L"关机", L"", L"power", L"power" }
             };
         }
 

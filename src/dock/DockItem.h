@@ -13,7 +13,8 @@ enum class ItemAction {
     LaunchApp,
     ToggleLaunchpad,
     OpenSettings,
-    RecycleBin
+    RecycleBin,
+    Power
 };
 
 struct DockItem {

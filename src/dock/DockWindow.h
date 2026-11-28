@@ -55,6 +55,11 @@ private:
 
     void DrawLaunchpadIcon(ID2D1RenderTarget* rt, const D2D1_RECT_F& rect);
     void DrawSettingsIcon(ID2D1RenderTarget* rt, const D2D1_RECT_F& rect);
+    void DrawPowerIcon(ID2D1RenderTarget* rt, const D2D1_RECT_F& rect);
+
+    void PerformShutdown();
+    void PerformReboot();
+    void PerformSleep();
 
 private:
     HWND m_hwnd;

@@ -215,7 +215,7 @@ void DockWindow::AddItem(const std::wstring& name, const std::wstring& path, Ite
     item->currentSize = m_baseSize;
     item->targetSize = m_baseSize;
 
-    if (action != ItemAction::ToggleLaunchpad && action != ItemAction::OpenSettings) {
+    if (action != ItemAction::ToggleLaunchpad && action != ItemAction::OpenSettings && action != ItemAction::Power) {
         item->LoadIconFromPath(m_d2d.GetWICFactory(), m_d2d.GetRenderTarget());
     }
 
@@ -273,10 +273,10 @@ bool DockWindow::PinAppAtIndex(const std::wstring& name, const std::wstring& pat
     if (targetIndex >= 0 && targetIndex <= static_cast<int>(m_items.size())) {
         m_items.insert(m_items.begin() + targetIndex, std::move(item));
     } else {
-        // Default insertion: before settings and recycle bin
+        // Default insertion: before settings, recycle bin and power button
         auto it = m_items.end();
         for (auto i = m_items.begin(); i != m_items.end(); ++i) {
-            if ((*i)->action == ItemAction::OpenSettings || (*i)->action == ItemAction::RecycleBin) {
+            if ((*i)->action == ItemAction::OpenSettings || (*i)->action == ItemAction::RecycleBin || (*i)->action == ItemAction::Power) {
                 it = i;
                 break;
             }
@@ -400,13 +400,20 @@ void DockWindow::LoadConfig() {
     auto& cfg = Settings::SettingsManager::Instance().Config();
     if (!cfg.pinnedApps.empty()) {
         m_items.clear();
+        bool hasPower = false;
         for (const auto& item : cfg.pinnedApps) {
             ItemAction act = ItemAction::LaunchApp;
             if (item.action == L"launchpad") act = ItemAction::ToggleLaunchpad;
             else if (item.action == L"settings") act = ItemAction::OpenSettings;
+            else if (item.action == L"power" || item.name == L"关机") { act = ItemAction::Power; hasPower = true; }
             else if (item.action == L"recyclebin" || item.name == L"回收站" || item.path == L"shell:RecycleBinFolder") act = ItemAction::RecycleBin;
 
             AddItem(item.name, item.path, act);
+        }
+        // If power button is not in existing user config, append it to the far right by default
+        if (!hasPower) {
+            AddItem(L"关机", L"", ItemAction::Power);
+            SaveConfig();
         }
         return;
     }
@@ -417,6 +424,7 @@ void DockWindow::LoadConfig() {
     AddItem(L"资源管理器", L"C:\\Windows\\explorer.exe", ItemAction::LaunchApp);
     AddItem(L"回收站", L"shell:RecycleBinFolder", ItemAction::RecycleBin);
     AddItem(L"设置", L"", ItemAction::OpenSettings);
+    AddItem(L"关机", L"", ItemAction::Power);
 }
 
 void DockWindow::SaveConfig() {
@@ -434,6 +442,9 @@ void DockWindow::SaveConfig() {
         } else if (item->action == ItemAction::OpenSettings) {
             pa.action = L"settings";
             pa.icon = L"settings";
+        } else if (item->action == ItemAction::Power) {
+            pa.action = L"power";
+            pa.icon = L"power";
         } else if (item->action == ItemAction::RecycleBin) {
             pa.action = L"recyclebin";
             pa.path = L"shell:RecycleBinFolder";
@@ -558,6 +569,140 @@ void DockWindow::DrawSettingsIcon(ID2D1RenderTarget* rt, const D2D1_RECT_F& rect
     if (pBrush) pBrush->Release();
 }
 
+void DockWindow::DrawPowerIcon(ID2D1RenderTarget* rt, const D2D1_RECT_F& rect) {
+    float width = rect.right - rect.left;
+    float height = rect.bottom - rect.top;
+    float size = (width < height) ? width : height;
+    float radius = size * 0.22f;
+
+    // 1. Base squircle
+    D2D1_ROUNDED_RECT baseSquircle = D2D1::RoundedRect(rect, radius, radius);
+    ID2D1SolidColorBrush* pBrush = nullptr;
+    rt->CreateSolidColorBrush(D2D1::ColorF(0.20f, 0.17f, 0.20f, 0.95f), &pBrush);
+    if (pBrush) {
+        rt->FillRoundedRectangle(baseSquircle, pBrush);
+        pBrush->SetColor(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.22f));
+        rt->DrawRoundedRectangle(baseSquircle, pBrush, 1.2f);
+        pBrush->Release();
+    }
+
+    // 2. Power Symbol (IEC 5009 standard: open circular arc + vertical bar)
+    float cx = (rect.left + rect.right) / 2.0f;
+    float cy = (rect.top + rect.bottom) / 2.0f;
+    float r = size * 0.22f;
+    float strokeW = size * 0.075f;
+
+    ID2D1SolidColorBrush* pSymbolBrush = nullptr;
+    // Apple macOS Crimson Coral Red (#FF453A)
+    rt->CreateSolidColorBrush(D2D1::ColorF(1.0f, 0.28f, 0.24f, 0.96f), &pSymbolBrush);
+
+    if (pSymbolBrush && m_d2d.GetFactory()) {
+        ID2D1StrokeStyle* pStrokeStyle = nullptr;
+        D2D1_STROKE_STYLE_PROPERTIES sp = D2D1::StrokeStyleProperties(
+            D2D1_CAP_STYLE_ROUND,
+            D2D1_CAP_STYLE_ROUND,
+            D2D1_CAP_STYLE_ROUND,
+            D2D1_LINE_JOIN_ROUND
+        );
+        m_d2d.GetFactory()->CreateStrokeStyle(sp, nullptr, 0, &pStrokeStyle);
+
+        // Circular arc sweeping clockwise (300 degree open arc with 60 deg top gap)
+        float startX = cx + r * 0.50f;
+        float startY = cy - r * 0.866f;
+        float endX = cx - r * 0.50f;
+        float endY = cy - r * 0.866f;
+
+        ID2D1PathGeometry* pPath = nullptr;
+        if (SUCCEEDED(m_d2d.GetFactory()->CreatePathGeometry(&pPath)) && pPath) {
+            ID2D1GeometrySink* pSink = nullptr;
+            if (SUCCEEDED(pPath->Open(&pSink)) && pSink) {
+                pSink->BeginFigure(D2D1::Point2F(startX, startY), D2D1_FIGURE_BEGIN_HOLLOW);
+                pSink->AddArc(D2D1::ArcSegment(
+                    D2D1::Point2F(endX, endY),
+                    D2D1::SizeF(r, r),
+                    0.0f,
+                    D2D1_SWEEP_DIRECTION_CLOCKWISE,
+                    D2D1_ARC_SIZE_LARGE
+                ));
+                pSink->EndFigure(D2D1_FIGURE_END_OPEN);
+                pSink->Close();
+                pSink->Release();
+
+                rt->DrawGeometry(pPath, pSymbolBrush, strokeW, pStrokeStyle);
+            }
+            pPath->Release();
+        }
+
+        // Vertical bar through the top gap
+        rt->DrawLine(
+            D2D1::Point2F(cx, cy - r * 1.18f),
+            D2D1::Point2F(cx, cy - r * 0.08f),
+            pSymbolBrush,
+            strokeW,
+            pStrokeStyle
+        );
+
+        if (pStrokeStyle) pStrokeStyle->Release();
+        pSymbolBrush->Release();
+    }
+}
+
+void DockWindow::PerformShutdown() {
+    if (MessageBoxW(
+        m_hwnd,
+        L"您确定现在要关闭计算机吗？\n\n请在关机前保存所有未保存的工作与文档。",
+        L"系统关机确认",
+        MB_YESNO | MB_ICONQUESTION | MB_TOPMOST
+    ) == IDYES) {
+        HANDLE hToken = nullptr;
+        if (OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken)) {
+            TOKEN_PRIVILEGES tp = {};
+            LookupPrivilegeValueW(nullptr, SE_SHUTDOWN_NAME, &tp.Privileges[0].Luid);
+            tp.PrivilegeCount = 1;
+            tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+            AdjustTokenPrivileges(hToken, FALSE, &tp, 0, nullptr, nullptr);
+            CloseHandle(hToken);
+        }
+        ExitWindowsEx(EWX_SHUTDOWN | EWX_POWEROFF, SHTDN_REASON_MAJOR_OTHER | SHTDN_REASON_MINOR_OTHER);
+        ShellExecuteW(nullptr, L"open", L"shutdown.exe", L"/s /t 0", nullptr, SW_HIDE);
+    }
+}
+
+void DockWindow::PerformReboot() {
+    if (MessageBoxW(
+        m_hwnd,
+        L"您确定现在要重新启动计算机吗？\n\n请在重启前保存所有未保存的工作与文档。",
+        L"系统重启确认",
+        MB_YESNO | MB_ICONQUESTION | MB_TOPMOST
+    ) == IDYES) {
+        HANDLE hToken = nullptr;
+        if (OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken)) {
+            TOKEN_PRIVILEGES tp = {};
+            LookupPrivilegeValueW(nullptr, SE_SHUTDOWN_NAME, &tp.Privileges[0].Luid);
+            tp.PrivilegeCount = 1;
+            tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+            AdjustTokenPrivileges(hToken, FALSE, &tp, 0, nullptr, nullptr);
+            CloseHandle(hToken);
+        }
+        ExitWindowsEx(EWX_REBOOT, SHTDN_REASON_MAJOR_OTHER | SHTDN_REASON_MINOR_OTHER);
+        ShellExecuteW(nullptr, L"open", L"shutdown.exe", L"/r /t 0", nullptr, SW_HIDE);
+    }
+}
+
+void DockWindow::PerformSleep() {
+    typedef BOOLEAN (WINAPI *PFN_SetSuspendState)(BOOLEAN, BOOLEAN, BOOLEAN);
+    HMODULE hPowrProf = LoadLibraryW(L"powrprof.dll");
+    if (hPowrProf) {
+        auto pfn = (PFN_SetSuspendState)GetProcAddress(hPowrProf, "SetSuspendState");
+        if (pfn) {
+            pfn(FALSE, TRUE, FALSE);
+        }
+        FreeLibrary(hPowrProf);
+    } else {
+        ShellExecuteW(nullptr, L"open", L"rundll32.exe", L"powrprof.dll,SetSuspendState 0,1,0", nullptr, SW_HIDE);
+    }
+}
+
 void DockWindow::OnRButtonUp(int x, int y) {
     int clickedIndex = -1;
     for (size_t i = 0; i < m_items.size(); ++i) {
@@ -577,19 +722,28 @@ void DockWindow::OnRButtonUp(int x, int y) {
     if (clickedIndex >= 0 && clickedIndex < static_cast<int>(m_items.size())) {
         auto& item = m_items[clickedIndex];
         HMENU hMenu = CreatePopupMenu();
-        std::wstring openText = L"打开 " + item->name;
-        AppendMenuW(hMenu, MF_STRING, 1001, openText.c_str());
 
-        if (item->action == ItemAction::LaunchApp) {
+        if (item->action == ItemAction::Power) {
+            AppendMenuW(hMenu, MF_STRING, 1010, L"⏻ 关闭计算机...");
+            AppendMenuW(hMenu, MF_STRING, 1011, L"🔄 重新启动...");
+            AppendMenuW(hMenu, MF_STRING, 1012, L"💤 睡眠");
             AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
             AppendMenuW(hMenu, MF_STRING, 1002, L"从程序坞中移除");
-        } else if (item->action == ItemAction::RecycleBin) {
-            SHQUERYRBINFO qrb = { sizeof(SHQUERYRBINFO) };
-            bool hasItems = (SHQueryRecycleBinW(nullptr, &qrb) == S_OK && qrb.i64NumItems > 0);
-            UINT emptyFlags = hasItems ? MF_STRING : (MF_STRING | MF_DISABLED | MF_GRAYED);
-            AppendMenuW(hMenu, emptyFlags, 1003, L"清空回收站");
-            AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
-            AppendMenuW(hMenu, MF_STRING, 1002, L"从程序坞中移除");
+        } else {
+            std::wstring openText = L"打开 " + item->name;
+            AppendMenuW(hMenu, MF_STRING, 1001, openText.c_str());
+
+            if (item->action == ItemAction::LaunchApp) {
+                AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
+                AppendMenuW(hMenu, MF_STRING, 1002, L"从程序坞中移除");
+            } else if (item->action == ItemAction::RecycleBin) {
+                SHQUERYRBINFO qrb = { sizeof(SHQUERYRBINFO) };
+                bool hasItems = (SHQueryRecycleBinW(nullptr, &qrb) == S_OK && qrb.i64NumItems > 0);
+                UINT emptyFlags = hasItems ? MF_STRING : (MF_STRING | MF_DISABLED | MF_GRAYED);
+                AppendMenuW(hMenu, emptyFlags, 1003, L"清空回收站");
+                AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
+                AppendMenuW(hMenu, MF_STRING, 1002, L"从程序坞中移除");
+            }
         }
 
         // Position popup cleanly ABOVE the dock and centered horizontally on the clicked icon
@@ -639,6 +793,8 @@ void DockWindow::OnRButtonUp(int x, int y) {
                 }
             } else if (item->action == ItemAction::RecycleBin) {
                 ShellExecuteW(nullptr, L"open", L"shell:RecycleBinFolder", nullptr, nullptr, SW_SHOWNORMAL);
+            } else if (item->action == ItemAction::Power) {
+                PerformShutdown();
             }
         } else if (cmd == 1002) {
             TriggerVanishEffect(clickedIndex);
@@ -647,6 +803,12 @@ void DockWindow::OnRButtonUp(int x, int y) {
                 item->ReloadIcon(m_d2d.GetWICFactory(), m_d2d.GetRenderTarget());
                 InvalidateRect(m_hwnd, nullptr, FALSE);
             }
+        } else if (cmd == 1010) {
+            PerformShutdown();
+        } else if (cmd == 1011) {
+            PerformReboot();
+        } else if (cmd == 1012) {
+            PerformSleep();
         }
     } else {
         // Right clicked blank area of the dock bar
@@ -1256,6 +1418,8 @@ void DockWindow::OnLButtonUp(int x, int y) {
                 }
             } else if (item->action == ItemAction::RecycleBin) {
                 ShellExecuteW(nullptr, L"open", L"shell:RecycleBinFolder", nullptr, nullptr, SW_SHOWNORMAL);
+            } else if (item->action == ItemAction::Power) {
+                PerformShutdown();
             }
             break;
         }
@@ -1331,6 +1495,8 @@ void DockWindow::Render() {
             DrawLaunchpadIcon(rt, iconRect);
         } else if (item->action == ItemAction::OpenSettings) {
             DrawSettingsIcon(rt, iconRect);
+        } else if (item->action == ItemAction::Power) {
+            DrawPowerIcon(rt, iconRect);
         } else if (item->pBitmap) {
             rt->DrawBitmap(
                 item->pBitmap,
@@ -1370,6 +1536,8 @@ void DockWindow::Render() {
             DrawLaunchpadIcon(rt, floatRect);
         } else if (dragItem->action == ItemAction::OpenSettings) {
             DrawSettingsIcon(rt, floatRect);
+        } else if (dragItem->action == ItemAction::Power) {
+            DrawPowerIcon(rt, floatRect);
         } else if (dragItem->pBitmap) {
             rt->DrawBitmap(dragItem->pBitmap, floatRect, floatAlpha, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR);
         }

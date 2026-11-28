@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 echo ========================================================
-echo   Macify v0.0.7 Builder (Native C++ Desktop Suite)
+echo   Macify v0.0.8 Builder (Native C++ Desktop Suite)
 echo ========================================================
 
 :: If g++ is not in current session PATH, check D:\tools\w64devkit\bin
@@ -22,7 +22,7 @@ if %errorlevel% equ 0 (
     if not exist "bin" mkdir bin
     
     where windres >nul 2>nul
-    if %errorlevel% equ 0 (
+    if !errorlevel! equ 0 (
         if exist "app.rc" (
             echo [*] Compiling application icon resource...
             windres -i app.rc -o app.res.o
@@ -47,10 +47,10 @@ if %errorlevel% equ 0 (
         src/widgets/WidgetHostWindow.cpp ^
         src/settings/SettingsWindow.cpp ^
         !RES_OBJ! ^
-        -ld2d1 -ldwrite -lwindowscodecs -ldwmapi -lole32 -lshell32 -lgdi32 -luser32 -luuid -ladvapi32 -lcomdlg32 ^
+        -ld2d1 -ldwrite -lwindowscodecs -ldwmapi -lole32 -lshell32 -lgdi32 -luser32 -luuid -ladvapi32 -lcomdlg32 -lpowrprof ^
         -o bin/MacDesktopBeauty.exe
         
-    if %errorlevel% equ 0 (
+    if !errorlevel! equ 0 (
         :: Preserve user configuration: only initialize if bin\config.json does not exist
         if not exist "bin\config.json" (
             echo [*] Initializing bin\config.json from template...
